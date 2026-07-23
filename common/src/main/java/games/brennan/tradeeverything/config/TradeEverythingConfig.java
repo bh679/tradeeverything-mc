@@ -95,6 +95,10 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:shulker_shell", 64);
         overrides.put("minecraft:nautilus_shell", 32);
         overrides.put("minecraft:heart_of_the_sea", 256);
+        // Anvil damage states are separate items with no recipe — price the decay
+        // explicitly (≈11 → 4 → 1 emeralds after the payout margin).
+        overrides.put("minecraft:chipped_anvil", 88);
+        overrides.put("minecraft:damaged_anvil", 22);
         overrides.put("minecraft:turtle_scute", 16);
         overrides.put("minecraft:armadillo_scute", 8);
         overrides.put("minecraft:phantom_membrane", 16);
