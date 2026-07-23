@@ -95,6 +95,9 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:shulker_shell", 64);
         overrides.put("minecraft:nautilus_shell", 32);
         overrides.put("minecraft:heart_of_the_sea", 256);
+        overrides.put("minecraft:turtle_scute", 16);
+        overrides.put("minecraft:armadillo_scute", 8);
+        overrides.put("minecraft:phantom_membrane", 16);
 
         // result_multiplier 0.75 = the villager's merchant margin: payouts are 75%
         // of value, so discount-driven buy/sell round-trips can't print emeralds.

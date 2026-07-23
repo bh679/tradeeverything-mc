@@ -26,11 +26,22 @@ public final class TradePricer {
      * 64 chicken instead of its ~9 emeralds).
      */
     public static Item payoutFor(ItemStack input, Item preferred, TradeEverythingConfig config) {
-        if (input.isEmpty() || preferred == Items.EMERALD) return preferred;
+        if (input.isEmpty()) return preferred;
         double singleValue = ItemValuation.valueSixteenths(input) * config.resultMultiplier();
-        int payoutValue = ItemValuation.valueSixteenths(new ItemStack(preferred));
-        int cap = Math.min(Math.min(64, new ItemStack(preferred).getMaxStackSize()), config.maxResultCount());
-        return singleValue > (double) payoutValue * cap ? Items.EMERALD : preferred;
+        if (preferred != Items.EMERALD && overflowsStack(singleValue, preferred, config)) {
+            preferred = Items.EMERALD;
+        }
+        // Netherite armor exceeds even a stack of emeralds — escalate once more.
+        if (preferred == Items.EMERALD && overflowsStack(singleValue, Items.EMERALD, config)) {
+            preferred = Items.EMERALD_BLOCK;
+        }
+        return preferred;
+    }
+
+    private static boolean overflowsStack(double singleValue, Item payout, TradeEverythingConfig config) {
+        int payoutValue = ItemValuation.valueSixteenths(new ItemStack(payout));
+        int cap = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
+        return singleValue > (double) payoutValue * cap;
     }
 
     public static Optional<Quote> quote(ItemStack input, Item payout, TradeEverythingConfig config) {
