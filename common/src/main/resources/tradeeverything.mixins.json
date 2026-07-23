@@ -6,7 +6,8 @@
   "mixins": [
     "MerchantOfferMixin",
     "MerchantContainerMixin",
-    "AbstractVillagerTradingMixin"
+    "AbstractVillagerTradingMixin",
+    "SmithingTransformRecipeAccessor"
   ],
   "client": [],
   "server": [],

@@ -6,8 +6,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import games.brennan.tradeeverything.mixin.SmithingTransformRecipeAccessor;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -54,19 +56,36 @@ public final class RecipeValues {
                 if (result.isEmpty()) continue;
                 NonNullList<Ingredient> ingredients = holder.value().getIngredients();
                 if (ingredients.isEmpty()) continue;
-                List<ItemStack[]> options = new ArrayList<>();
-                for (Ingredient ingredient : ingredients) {
-                    ItemStack[] items = ingredient.getItems();
-                    if (items.length > 0) options.add(items);
-                }
-                if (options.isEmpty()) continue;
-                index.computeIfAbsent(result.getItem(), k -> new ArrayList<>())
-                    .add(new IndexedRecipe(options, result.getCount()));
+                addRecipe(index, result, ingredients);
+            }
+            // Smithing transforms (netherite gear): template + base + addition,
+            // all consumed — without these a netherite sword prices as COMMON.
+            for (RecipeHolder<?> holder : manager.getAllRecipesFor(RecipeType.SMITHING)) {
+                if (!(holder.value() instanceof SmithingTransformRecipe smithing)) continue;
+                ItemStack result = smithing.getResultItem(server.registryAccess());
+                if (result.isEmpty()) continue;
+                SmithingTransformRecipeAccessor accessor = (SmithingTransformRecipeAccessor) smithing;
+                addRecipe(index, result, List.of(
+                    accessor.tradeeverything$template(),
+                    accessor.tradeeverything$base(),
+                    accessor.tradeeverything$addition()
+                ));
             }
             MEMO.clear();
             recipesByResult = index;
             indexedManager = manager;
         }
+    }
+
+    private static void addRecipe(Map<Item, List<IndexedRecipe>> index, ItemStack result, List<Ingredient> ingredients) {
+        List<ItemStack[]> options = new ArrayList<>();
+        for (Ingredient ingredient : ingredients) {
+            ItemStack[] items = ingredient.getItems();
+            if (items.length > 0) options.add(items);
+        }
+        if (options.isEmpty()) return;
+        index.computeIfAbsent(result.getItem(), k -> new ArrayList<>())
+            .add(new IndexedRecipe(options, result.getCount()));
     }
 
     /** Cheapest-recipe value in sixteenths, or empty if the item has no crafting recipe. */

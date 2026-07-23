@@ -83,6 +83,18 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:ender_pearl", 16);
         overrides.put("minecraft:blaze_rod", 16);
         overrides.put("minecraft:slime_ball", 4);
+        // Uncraftable gear — no recipe to derive from, and vanilla rarity says COMMON.
+        overrides.put("minecraft:trident", 128);
+        overrides.put("minecraft:saddle", 64);
+        overrides.put("minecraft:iron_horse_armor", 64);
+        overrides.put("minecraft:golden_horse_armor", 48);
+        overrides.put("minecraft:diamond_horse_armor", 256);
+        overrides.put("minecraft:totem_of_undying", 128);
+        overrides.put("minecraft:heavy_core", 256);
+        overrides.put("minecraft:breeze_rod", 16);
+        overrides.put("minecraft:shulker_shell", 64);
+        overrides.put("minecraft:nautilus_shell", 32);
+        overrides.put("minecraft:heart_of_the_sea", 256);
 
         // result_multiplier 0.75 = the villager's merchant margin: payouts are 75%
         // of value, so discount-driven buy/sell round-trips can't print emeralds.
