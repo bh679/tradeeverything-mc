@@ -19,7 +19,7 @@ public final class TradeExemptions {
     private TradeExemptions() {}
 
     public static boolean isExempt(Item item, MerchantOffers offers) {
-        if (item == Items.EMERALD) return true;
+        if (item == Items.EMERALD || item == Items.EMERALD_BLOCK) return true;
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             if (offer.getItemCostA().item().value() == item) return true;

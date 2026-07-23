@@ -11,6 +11,7 @@ import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
@@ -56,6 +57,7 @@ public abstract class MerchantContainerMixin {
         if (offers.isEmpty() || !SyntheticOfferFactory.isSynthetic(offers.get(0))) return;
 
         MerchantContainer self = (MerchantContainer) (Object) this;
+        tradeeverything$makeChange(self, villager);
         ItemStack slotA = self.getItem(0);
         ItemStack input = slotA.isEmpty() ? self.getItem(1) : slotA;
 
@@ -73,5 +75,36 @@ public abstract class MerchantContainerMixin {
 
         offers.set(0, replacement);
         OfferResync.send(villager);
+    }
+
+    /**
+     * Emerald blocks are currency, not merchandise: a block placed in a
+     * payment slot converts to 9 emeralds (max 7 blocks → 63, the stack cap),
+     * so it spends in any emerald-priced trade with the remainder returned as
+     * change; overflow blocks go back to the player's inventory. Guarded
+     * against re-entry because setItem re-triggers updateSellItem.
+     */
+    @Unique
+    private boolean tradeeverything$converting;
+
+    @Unique
+    private void tradeeverything$makeChange(MerchantContainer self, AbstractVillager villager) {
+        if (tradeeverything$converting) return;
+        for (int slot = 0; slot <= 1; slot++) {
+            ItemStack stack = self.getItem(slot);
+            if (!stack.is(Items.EMERALD_BLOCK)) continue;
+            int blocks = stack.getCount();
+            int convertible = Math.min(blocks, 7);
+            tradeeverything$converting = true;
+            try {
+                self.setItem(slot, new ItemStack(Items.EMERALD, convertible * 9));
+            } finally {
+                tradeeverything$converting = false;
+            }
+            if (blocks > convertible && villager.getTradingPlayer() != null) {
+                villager.getTradingPlayer().getInventory()
+                    .placeItemBackInInventory(new ItemStack(Items.EMERALD_BLOCK, blocks - convertible));
+            }
+        }
     }
 }
