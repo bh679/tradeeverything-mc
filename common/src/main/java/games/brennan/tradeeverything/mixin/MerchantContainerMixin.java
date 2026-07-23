@@ -1,6 +1,7 @@
 package games.brennan.tradeeverything.mixin;
 
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
+import games.brennan.tradeeverything.trade.BuybackPricer;
 import games.brennan.tradeeverything.trade.ItemValuation;
 import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.RecipeValues;
@@ -82,11 +83,16 @@ public abstract class MerchantContainerMixin {
         Item payout = input.isEmpty() ? preferred
             : TradePricer.payoutFor(input, preferred, offers, TradeEverythingConfig.get());
         int payoutValue = TradePricer.payoutValueSixteenths(payout, offers);
-        MerchantOffer replacement = input.isEmpty() || TradeExemptions.isExempt(input.getItem(), offers)
-            ? SyntheticOfferFactory.placeholder(payout)
-            : TradePricer.quote(input, payout, payoutValue, TradeEverythingConfig.get())
-                .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()))
-                .orElseGet(() -> SyntheticOfferFactory.placeholder(payout));
+        MerchantOffer replacement;
+        if (input.isEmpty() || TradeExemptions.isExempt(input, offers)) {
+            replacement = SyntheticOfferFactory.placeholder(payout);
+        } else {
+            // The villager's own stock buys back at 10% under its live price.
+            replacement = BuybackPricer.buybackOffer(input, offers)
+                .orElseGet(() -> TradePricer.quote(input, payout, payoutValue, TradeEverythingConfig.get())
+                    .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()))
+                    .orElseGet(() -> SyntheticOfferFactory.placeholder(payout)));
+        }
 
         offers.set(0, replacement);
         OfferResync.send(villager);

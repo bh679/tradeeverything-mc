@@ -1,6 +1,7 @@
 package games.brennan.tradeeverything.trade;
 
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
@@ -18,14 +19,19 @@ public final class TradeExemptions {
 
     private TradeExemptions() {}
 
-    public static boolean isExempt(Item item, MerchantOffers offers) {
+    public static boolean isExempt(ItemStack input, MerchantOffers offers) {
+        Item item = input.getItem();
         if (item == Items.EMERALD || item == Items.EMERALD_BLOCK) return true;
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
+            // Buy-side: item-level — commodities the villager buys belong to
+            // its real trade rows regardless of components.
             if (offer.getItemCostA().item().value() == item) return true;
             if (offer.getItemCostB().isPresent() && offer.getItemCostB().get().item().value() == item) return true;
-            if (offer.getResult().getItem() == item) return true;
         }
+        // The villager's own stock is NOT exempt — it's bought back at a 10%
+        // margin under its live sell price (see BuybackPricer), which keeps
+        // discount round-trips unprofitable while letting players return goods.
         return false;
     }
 }
