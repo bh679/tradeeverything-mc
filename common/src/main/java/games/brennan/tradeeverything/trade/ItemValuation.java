@@ -78,11 +78,17 @@ public final class ItemValuation {
         return levels * perLevel;
     }
 
+    /**
+     * Effective level units: doubles per level (1, 2, 4, 8, 16…) so a
+     * Sharpness V is worth 16× a Sharpness I, mirroring how enchant cost
+     * and power scale. Capped to avoid overflow on absurd NBT levels.
+     */
     private static int totalLevels(ItemEnchantments enchantments) {
         if (enchantments == null) return 0;
         int sum = 0;
         for (var entry : enchantments.entrySet()) {
-            sum += entry.getIntValue();
+            int level = Math.min(entry.getIntValue(), 12);
+            if (level > 0) sum += 1 << (level - 1);
         }
         return sum;
     }

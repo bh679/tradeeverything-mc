@@ -17,6 +17,9 @@ public final class TradePricer {
     /** Cost count N and result count M for the synthetic offer. */
     public record Quote(int costCount, int resultCount) {}
 
+    /** Max relative rounding loss accepted before trying a bigger batch. */
+    private static final double ACCEPTABLE_OVERPAY = 0.10;
+
     private TradePricer() {}
 
     /**
@@ -53,6 +56,8 @@ public final class TradePricer {
         int maxResult = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
         double multiplier = config.resultMultiplier();
 
+        // Prefer the SMALLEST batch whose rounding loss is acceptable (1 anvil → 11
+        // emeralds beats 5 anvils → 58), falling back to the least-lossy batch.
         double bestScore = Double.MAX_VALUE;
         int bestCost = -1;
         int bestResult = -1;
@@ -62,6 +67,11 @@ public final class TradePricer {
             if (m < 1) continue;
             m = Math.min(m, maxResult);
             double score = (inValue - m * (double) valueOut) / inValue; // relative overpay
+            if (score <= ACCEPTABLE_OVERPAY) {
+                bestCost = n;
+                bestResult = m;
+                break;
+            }
             if (score < bestScore - 1.0e-9) {
                 bestScore = score;
                 bestCost = n;
