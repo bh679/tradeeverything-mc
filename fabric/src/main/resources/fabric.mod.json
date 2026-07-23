@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "tradeeverything",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": ["${mod_authors}"],
+  "contact": {
+    "homepage": "https://github.com/bh679/tradeeverything-mc",
+    "sources": "https://github.com/bh679/tradeeverything-mc",
+    "issues": "https://github.com/bh679/tradeeverything-mc/issues"
+  },
+  "license": "${mod_license}",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["games.brennan.tradeeverything.fabric.TradeEverythingFabric"]
+  },
+  "mixins": [
+    "tradeeverything.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

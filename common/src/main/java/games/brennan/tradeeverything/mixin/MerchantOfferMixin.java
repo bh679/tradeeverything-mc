@@ -1,0 +1,24 @@
+package games.brennan.tradeeverything.mixin;
+
+import games.brennan.tradeeverything.trade.SyntheticOffer;
+import net.minecraft.world.item.trading.MerchantOffer;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
+
+/** Attaches the synthetic-offer flag to every MerchantOffer (default false). */
+@Mixin(MerchantOffer.class)
+public class MerchantOfferMixin implements SyntheticOffer {
+
+    @Unique
+    private boolean tradeeverything$synthetic;
+
+    @Override
+    public boolean tradeeverything$isSynthetic() {
+        return tradeeverything$synthetic;
+    }
+
+    @Override
+    public void tradeeverything$setSynthetic(boolean synthetic) {
+        tradeeverything$synthetic = synthetic;
+    }
+}

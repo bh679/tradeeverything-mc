@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "games.brennan.tradeeverything.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MerchantOfferMixin",
+    "MerchantMenuAccessor",
+    "MerchantMenuMixin",
+    "AbstractVillagerTradingMixin"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
