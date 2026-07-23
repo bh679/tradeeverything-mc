@@ -5,8 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "MerchantOfferMixin",
-    "MerchantMenuAccessor",
-    "MerchantMenuMixin",
+    "MerchantContainerMixin",
     "AbstractVillagerTradingMixin"
   ],
   "client": [],

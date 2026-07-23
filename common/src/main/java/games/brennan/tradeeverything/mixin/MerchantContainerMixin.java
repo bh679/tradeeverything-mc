@@ -5,45 +5,54 @@ import games.brennan.tradeeverything.trade.ItemValuation;
 import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
 import games.brennan.tradeeverything.trade.TradePricer;
-import net.minecraft.world.Container;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.inventory.MerchantContainer;
-import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Dynamic repricing of the synthetic offer. Server-side, after vanilla's
- * {@code updateSellItem()}: read the payment slot, rewrite offer 0 to
- * (N × inserted item → M × payout), re-run the sell-item computation and
- * resync offers to the client. Change-detection on the inserted item
- * (ignoring count) keeps this idempotent and packet-quiet.
+ * Dynamic repricing of the synthetic offer, hooked at the single funnel point
+ * every payment-slot mutation goes through: {@code MerchantContainer.updateSellItem()}
+ * (both {@code setChanged()} and {@code MerchantMenu.slotsChanged} call it —
+ * plain slot clicks never reach {@code slotsChanged}, which is why the hook
+ * lives here and not on the menu).
+ *
+ * <p>HEAD injection: rewrite offer 0 to (N × inserted item → M × payout)
+ * first, then let vanilla's own body compute the sell slot against the fixed
+ * offer. Change-detection on the inserted item (ignoring count) keeps this
+ * idempotent and packet-quiet.</p>
  */
-@Mixin(MerchantMenu.class)
-public abstract class MerchantMenuMixin {
+@Mixin(MerchantContainer.class)
+public abstract class MerchantContainerMixin {
+
+    @Shadow
+    @Final
+    private Merchant merchant;
 
     @Unique
     private ItemStack tradeeverything$lastInput = ItemStack.EMPTY;
 
-    @Inject(method = "slotsChanged", at = @At("TAIL"))
-    private void tradeeverything$reprice(Container container, CallbackInfo ci) {
-        MerchantMenuAccessor accessor = (MerchantMenuAccessor) this;
-        if (!(accessor.tradeeverything$getTrader() instanceof AbstractVillager villager)) return;
+    @Inject(method = "updateSellItem", at = @At("HEAD"))
+    private void tradeeverything$reprice(CallbackInfo ci) {
+        if (!(merchant instanceof AbstractVillager villager)) return;
         if (villager.level().isClientSide()) return;
 
         MerchantOffers offers = villager.getOffers();
         if (offers.isEmpty() || !SyntheticOfferFactory.isSynthetic(offers.get(0))) return;
 
-        MerchantContainer tradeContainer = accessor.tradeeverything$getTradeContainer();
-        ItemStack slotA = tradeContainer.getItem(0);
-        ItemStack input = slotA.isEmpty() ? tradeContainer.getItem(1) : slotA;
+        MerchantContainer self = (MerchantContainer) (Object) this;
+        ItemStack slotA = self.getItem(0);
+        ItemStack input = slotA.isEmpty() ? self.getItem(1) : slotA;
 
         // The cost count depends only on item + components, not inserted count.
         if (ItemStack.isSameItemSameComponents(input, tradeeverything$lastInput)) return;
@@ -57,7 +66,6 @@ public abstract class MerchantMenuMixin {
                 .orElseGet(() -> SyntheticOfferFactory.placeholder(payout));
 
         offers.set(0, replacement);
-        tradeContainer.updateSellItem();
-        OfferResync.send(((MerchantMenu) (Object) this).containerId, villager);
+        OfferResync.send(villager);
     }
 }
