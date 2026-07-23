@@ -26,16 +26,18 @@ public final class SyntheticOfferFactory {
     private SyntheticOfferFactory() {}
 
     /**
-     * Pre-insertion placeholder row: an unobtainable named barrier as the cost
-     * (the CUSTOM_NAME lives in the ItemCost predicate, so the client renders
-     * the localized "Trade Anything" label without any client-side code) and
-     * one payout item advertising what the villager wants.
+     * Pre-insertion placeholder row: a chest named "Trade Anything" as the
+     * cost — the chest reads as "put anything in here", and the CUSTOM_NAME
+     * lives in the ItemCost predicate, so the client renders the localized
+     * label without any client-side code AND the cost stays unmatchable (an
+     * anvil rename produces a literal component, never this translatable one).
+     * The result advertises one payout item — what the villager pays with.
      */
     public static MerchantOffer placeholder(Item payout) {
         DataComponentPredicate predicate = DataComponentPredicate.builder()
             .expect(DataComponents.CUSTOM_NAME, Component.translatable("tradeeverything.trade_anything"))
             .build();
-        ItemCost cost = new ItemCost(Items.BARRIER.builtInRegistryHolder(), 1, predicate);
+        ItemCost cost = new ItemCost(Items.CHEST.builtInRegistryHolder(), 1, predicate);
         return mark(new MerchantOffer(cost, Optional.empty(), new ItemStack(payout, 1), 0, MAX_USES, 0, 0.0f));
     }
 
