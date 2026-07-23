@@ -3,6 +3,7 @@ package games.brennan.tradeeverything.mixin;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import games.brennan.tradeeverything.trade.ItemValuation;
 import games.brennan.tradeeverything.trade.OfferResync;
+import games.brennan.tradeeverything.trade.RecipeValues;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
 import games.brennan.tradeeverything.trade.TradeExemptions;
 import games.brennan.tradeeverything.trade.TradePricer;
@@ -47,6 +48,9 @@ public abstract class MerchantContainerMixin {
     private void tradeeverything$reprice(CallbackInfo ci) {
         if (!(merchant instanceof AbstractVillager villager)) return;
         if (villager.level().isClientSide()) return;
+        if (villager.level().getServer() != null) {
+            RecipeValues.ensureIndexed(villager.level().getServer());
+        }
 
         MerchantOffers offers = villager.getOffers();
         if (offers.isEmpty() || !SyntheticOfferFactory.isSynthetic(offers.get(0))) return;

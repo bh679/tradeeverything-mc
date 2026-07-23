@@ -31,7 +31,8 @@ public record TradeEverythingConfig(
     int maxCostCount,
     int maxResultCount,
     boolean allowUndervaluedTrades,
-    boolean enableWanderingTrader
+    boolean enableWanderingTrader,
+    boolean deriveValuesFromRecipes
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
@@ -84,7 +85,7 @@ public record TradeEverythingConfig(
 
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            1.0, 64, 64, true, true
+            1.0, 64, 64, true, true, true
         );
     }
 
@@ -112,7 +113,8 @@ public record TradeEverythingConfig(
         int maxResult = (int) clamp(number(root, "max_result_count", defaults.maxResultCount()), 1, 64);
         boolean undervalued = bool(root, "allow_undervalued_trades", defaults.allowUndervaluedTrades());
         boolean wandering = bool(root, "enable_wandering_trader", defaults.enableWanderingTrader());
-        return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult, undervalued, wandering);
+        boolean recipes = bool(root, "derive_values_from_recipes", defaults.deriveValuesFromRecipes());
+        return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult, undervalued, wandering, recipes);
     }
 
     private static Map<String, Integer> intMap(JsonObject root, String key, Map<String, Integer> fallback) {
@@ -157,6 +159,7 @@ public record TradeEverythingConfig(
         root.addProperty("max_result_count", config.maxResultCount());
         root.addProperty("allow_undervalued_trades", config.allowUndervaluedTrades());
         root.addProperty("enable_wandering_trader", config.enableWanderingTrader());
+        root.addProperty("derive_values_from_recipes", config.deriveValuesFromRecipes());
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);

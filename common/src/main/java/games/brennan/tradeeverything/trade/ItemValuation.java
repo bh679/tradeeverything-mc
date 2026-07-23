@@ -38,14 +38,29 @@ public final class ItemValuation {
             OptionalInt value = provider.value(stack);
             if (value.isPresent()) return Math.max(1, value.getAsInt());
         }
+        OptionalInt override = overrideValue(stack);
+        if (override.isPresent()) return override.getAsInt();
+        int rarity = rarityValue(stack);
+        if (TradeEverythingConfig.get().deriveValuesFromRecipes()) {
+            OptionalInt derived = RecipeValues.derivedValue(stack.getItem());
+            if (derived.isPresent()) return Math.max(rarity, derived.getAsInt());
+        }
+        return rarity;
+    }
+
+    /** Runtime API override, else config override. Package-visible for RecipeValues. */
+    static OptionalInt overrideValue(ItemStack stack) {
         ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         Integer runtime = RUNTIME_OVERRIDES.get(id);
-        if (runtime != null) return runtime;
-        TradeEverythingConfig config = TradeEverythingConfig.get();
-        Integer override = config.itemOverridesSixteenths().get(id.toString());
-        if (override != null) return override;
+        if (runtime != null) return OptionalInt.of(runtime);
+        Integer override = TradeEverythingConfig.get().itemOverridesSixteenths().get(id.toString());
+        return override != null ? OptionalInt.of(override) : OptionalInt.empty();
+    }
+
+    /** Config rarity-tier value for the stack. Package-visible for RecipeValues. */
+    static int rarityValue(ItemStack stack) {
         String rarity = stack.getRarity().name().toLowerCase(Locale.ROOT);
-        return Math.max(1, config.rarityValuesSixteenths().getOrDefault(rarity, 1));
+        return Math.max(1, TradeEverythingConfig.get().rarityValuesSixteenths().getOrDefault(rarity, 1));
     }
 
     /** Payout item for the villager: API selectors first, then the built-in default. */
