@@ -6,6 +6,8 @@
   "mixins": [
     "MerchantOfferMixin",
     "MerchantContainerMixin",
+    "MerchantMenuAccessor",
+    "MerchantMenuMixin",
     "AbstractVillagerTradingMixin",
     "SmithingTransformRecipeAccessor"
   ],
