@@ -32,7 +32,8 @@ public record TradeEverythingConfig(
     int maxResultCount,
     boolean allowUndervaluedTrades,
     boolean enableWanderingTrader,
-    boolean deriveValuesFromRecipes
+    boolean deriveValuesFromRecipes,
+    int enchantmentValuePerLevelSixteenths
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
@@ -83,9 +84,11 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:blaze_rod", 16);
         overrides.put("minecraft:slime_ball", 4);
 
+        // result_multiplier 0.75 = the villager's merchant margin: payouts are 75%
+        // of value, so discount-driven buy/sell round-trips can't print emeralds.
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            1.0, 64, 64, true, true, true
+            0.75, 64, 64, true, true, true, 16
         );
     }
 
@@ -114,7 +117,10 @@ public record TradeEverythingConfig(
         boolean undervalued = bool(root, "allow_undervalued_trades", defaults.allowUndervaluedTrades());
         boolean wandering = bool(root, "enable_wandering_trader", defaults.enableWanderingTrader());
         boolean recipes = bool(root, "derive_values_from_recipes", defaults.deriveValuesFromRecipes());
-        return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult, undervalued, wandering, recipes);
+        int enchantPerLevel = (int) clamp(number(root, "enchantment_value_per_level_sixteenths",
+            defaults.enchantmentValuePerLevelSixteenths()), 0, 100_000);
+        return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult,
+            undervalued, wandering, recipes, enchantPerLevel);
     }
 
     private static Map<String, Integer> intMap(JsonObject root, String key, Map<String, Integer> fallback) {
@@ -160,6 +166,7 @@ public record TradeEverythingConfig(
         root.addProperty("allow_undervalued_trades", config.allowUndervaluedTrades());
         root.addProperty("enable_wandering_trader", config.enableWanderingTrader());
         root.addProperty("derive_values_from_recipes", config.deriveValuesFromRecipes());
+        root.addProperty("enchantment_value_per_level_sixteenths", config.enchantmentValuePerLevelSixteenths());
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);

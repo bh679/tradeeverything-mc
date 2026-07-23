@@ -3,11 +3,13 @@ package games.brennan.tradeeverything.trade;
 import games.brennan.tradeeverything.api.BuyItemSelector;
 import games.brennan.tradeeverything.api.ItemValueProvider;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.List;
@@ -38,6 +40,10 @@ public final class ItemValuation {
             OptionalInt value = provider.value(stack);
             if (value.isPresent()) return Math.max(1, value.getAsInt());
         }
+        return Math.max(1, adjustForStack(baseValue(stack), stack));
+    }
+
+    private static int baseValue(ItemStack stack) {
         OptionalInt override = overrideValue(stack);
         if (override.isPresent()) return override.getAsInt();
         int rarity = rarityValue(stack);
@@ -46,6 +52,39 @@ public final class ItemValuation {
             if (derived.isPresent()) return Math.max(rarity, derived.getAsInt());
         }
         return rarity;
+    }
+
+    /**
+     * Stack-specific adjustments: enchantment levels add value (config
+     * per-level, stored book enchants included); durability scales it —
+     * 10% when nearly broken, linearly up to 100% at ≥90% durability
+     * ({@code factor = min(1, 0.1 + remainingFraction)}).
+     */
+    private static int adjustForStack(int base, ItemStack stack) {
+        int value = base + enchantmentBonus(stack);
+        if (stack.isDamageableItem() && stack.isDamaged()) {
+            double remaining = 1.0 - (double) stack.getDamageValue() / stack.getMaxDamage();
+            double factor = Math.min(1.0, 0.1 + remaining);
+            value = (int) Math.round(value * factor);
+        }
+        return value;
+    }
+
+    private static int enchantmentBonus(ItemStack stack) {
+        int perLevel = TradeEverythingConfig.get().enchantmentValuePerLevelSixteenths();
+        if (perLevel <= 0) return 0;
+        int levels = totalLevels(stack.get(DataComponents.ENCHANTMENTS))
+            + totalLevels(stack.get(DataComponents.STORED_ENCHANTMENTS));
+        return levels * perLevel;
+    }
+
+    private static int totalLevels(ItemEnchantments enchantments) {
+        if (enchantments == null) return 0;
+        int sum = 0;
+        for (var entry : enchantments.entrySet()) {
+            sum += entry.getIntValue();
+        }
+        return sum;
     }
 
     /** Runtime API override, else config override. Package-visible for RecipeValues. */

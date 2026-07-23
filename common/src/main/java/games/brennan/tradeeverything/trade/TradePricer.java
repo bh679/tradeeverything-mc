@@ -3,6 +3,7 @@ package games.brennan.tradeeverything.trade;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.Optional;
 
@@ -17,6 +18,20 @@ public final class TradePricer {
     public record Quote(int costCount, int resultCount) {}
 
     private TradePricer() {}
+
+    /**
+     * Upgrades the payout to emeralds when a single input item is worth more
+     * than a full stack of the preferred payout — otherwise the stack cap
+     * would silently eat the difference (e.g. a diamond pickaxe capped at
+     * 64 chicken instead of its ~9 emeralds).
+     */
+    public static Item payoutFor(ItemStack input, Item preferred, TradeEverythingConfig config) {
+        if (input.isEmpty() || preferred == Items.EMERALD) return preferred;
+        double singleValue = ItemValuation.valueSixteenths(input) * config.resultMultiplier();
+        int payoutValue = ItemValuation.valueSixteenths(new ItemStack(preferred));
+        int cap = Math.min(Math.min(64, new ItemStack(preferred).getMaxStackSize()), config.maxResultCount());
+        return singleValue > (double) payoutValue * cap ? Items.EMERALD : preferred;
+    }
 
     public static Optional<Quote> quote(ItemStack input, Item payout, TradeEverythingConfig config) {
         int valueIn = ItemValuation.valueSixteenths(input);

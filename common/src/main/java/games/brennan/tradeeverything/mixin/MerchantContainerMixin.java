@@ -63,7 +63,8 @@ public abstract class MerchantContainerMixin {
         if (ItemStack.isSameItemSameComponents(input, tradeeverything$lastInput)) return;
         tradeeverything$lastInput = input.isEmpty() ? ItemStack.EMPTY : input.copyWithCount(1);
 
-        Item payout = ItemValuation.selectBuyItem(villager, offers);
+        Item preferred = ItemValuation.selectBuyItem(villager, offers);
+        Item payout = input.isEmpty() ? preferred : TradePricer.payoutFor(input, preferred, TradeEverythingConfig.get());
         MerchantOffer replacement = input.isEmpty() || TradeExemptions.isExempt(input.getItem(), offers)
             ? SyntheticOfferFactory.placeholder(payout)
             : TradePricer.quote(input, payout, TradeEverythingConfig.get())
