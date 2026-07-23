@@ -57,12 +57,20 @@ public final class RecipeValues {
         synchronized (RecipeValues.class) {
             if (manager == indexedManager && config == indexedConfig) return;
             long start = System.nanoTime();
-            Map<Item, List<IndexedRecipe>> index = buildIndex(server, manager);
-            derivedValues = solve(index);
+            try {
+                Map<Item, List<IndexedRecipe>> index = buildIndex(server, manager);
+                derivedValues = solve(index);
+                LOGGER.info("[TradeEverything] derived {} item values from {} craftable items in {} ms",
+                    derivedValues.size(), index.size(), (System.nanoTime() - start) / 1_000_000);
+            } catch (Throwable t) {
+                // Memoize the failure too — retrying a broken index on every
+                // payment-slot click would hammer the server thread and rethrow
+                // inside packet handling. Rarity fallback covers valuation.
+                derivedValues = Map.of();
+                LOGGER.error("[TradeEverything] recipe value derivation failed — using rarity fallback", t);
+            }
             indexedManager = manager;
             indexedConfig = config;
-            LOGGER.info("[TradeEverything] derived {} item values from {} craftable items in {} ms",
-                derivedValues.size(), index.size(), (System.nanoTime() - start) / 1_000_000);
         }
     }
 
@@ -74,25 +82,38 @@ public final class RecipeValues {
 
     private static Map<Item, List<IndexedRecipe>> buildIndex(MinecraftServer server, RecipeManager manager) {
         Map<Item, List<IndexedRecipe>> index = new HashMap<>();
+        int broken = 0;
         for (RecipeHolder<?> holder : manager.getAllRecipesFor(RecipeType.CRAFTING)) {
-            ItemStack result = holder.value().getResultItem(server.registryAccess());
-            if (result.isEmpty()) continue;
-            NonNullList<Ingredient> ingredients = holder.value().getIngredients();
-            if (ingredients.isEmpty()) continue;
-            addRecipe(index, result, ingredients);
+            // One malformed modded recipe must not void the whole table.
+            try {
+                ItemStack result = holder.value().getResultItem(server.registryAccess());
+                if (result.isEmpty()) continue;
+                NonNullList<Ingredient> ingredients = holder.value().getIngredients();
+                if (ingredients.isEmpty()) continue;
+                addRecipe(index, result, ingredients);
+            } catch (Throwable t) {
+                broken++;
+            }
         }
         // Smithing transforms (netherite gear): template + base + addition,
         // all consumed — without these a netherite sword prices as COMMON.
         for (RecipeHolder<?> holder : manager.getAllRecipesFor(RecipeType.SMITHING)) {
-            if (!(holder.value() instanceof SmithingTransformRecipe smithing)) continue;
-            ItemStack result = smithing.getResultItem(server.registryAccess());
-            if (result.isEmpty()) continue;
-            SmithingTransformRecipeAccessor accessor = (SmithingTransformRecipeAccessor) smithing;
-            addRecipe(index, result, List.of(
-                accessor.tradeeverything$template(),
-                accessor.tradeeverything$base(),
-                accessor.tradeeverything$addition()
-            ));
+            try {
+                if (!(holder.value() instanceof SmithingTransformRecipe smithing)) continue;
+                ItemStack result = smithing.getResultItem(server.registryAccess());
+                if (result.isEmpty()) continue;
+                SmithingTransformRecipeAccessor accessor = (SmithingTransformRecipeAccessor) smithing;
+                addRecipe(index, result, List.of(
+                    accessor.tradeeverything$template(),
+                    accessor.tradeeverything$base(),
+                    accessor.tradeeverything$addition()
+                ));
+            } catch (Throwable t) {
+                broken++;
+            }
+        }
+        if (broken > 0) {
+            LOGGER.warn("[TradeEverything] skipped {} unreadable recipes during value indexing", broken);
         }
         return index;
     }

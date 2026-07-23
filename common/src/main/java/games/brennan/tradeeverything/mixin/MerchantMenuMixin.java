@@ -6,6 +6,7 @@ import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import games.brennan.tradeeverything.trade.RepriceSuppression;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import org.spongepowered.asm.mixin.Mixin;
@@ -26,6 +27,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(MerchantMenu.class)
 public abstract class MerchantMenuMixin {
+
+    /**
+     * Clicking the Trade Anything row (index 0) has vanilla eject the payment
+     * slots before refilling them; without suppression the eject empties the
+     * slot, repricing resets offer 0 to the unmatchable placeholder, and the
+     * refill dead-ends — the row spat the payment out. Suppress repricing for
+     * the whole tryMoveItems pass so the priced offer survives the round trip.
+     */
+    @Inject(method = "tryMoveItems", at = @At("HEAD"))
+    private void tradeeverything$suppressBegin(int selectedIndex, CallbackInfo ci) {
+        if (selectedIndex != 0) return;
+        MerchantMenuAccessor accessor = (MerchantMenuAccessor) this;
+        if (!(accessor.tradeeverything$getTrader() instanceof AbstractVillager villager)) return;
+        if (villager.level().isClientSide()) return;
+        MerchantOffers offers = villager.getOffers();
+        if (offers.isEmpty() || !games.brennan.tradeeverything.trade.SyntheticOfferFactory.isSynthetic(offers.get(0))) return;
+        RepriceSuppression.begin();
+    }
+
+    @Inject(method = "tryMoveItems", at = @At("RETURN"))
+    private void tradeeverything$suppressEnd(int selectedIndex, CallbackInfo ci) {
+        RepriceSuppression.end();
+    }
 
     @Inject(method = "tryMoveItems", at = @At("HEAD"))
     private void tradeeverything$breakEmeraldBlocks(int selectedIndex, CallbackInfo ci) {

@@ -4,6 +4,7 @@ import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import games.brennan.tradeeverything.trade.ItemValuation;
 import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.RecipeValues;
+import games.brennan.tradeeverything.trade.RepriceSuppression;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
 import games.brennan.tradeeverything.trade.TradeExemptions;
 import games.brennan.tradeeverything.trade.TradePricer;
@@ -47,6 +48,19 @@ public abstract class MerchantContainerMixin {
 
     @Inject(method = "updateSellItem", at = @At("HEAD"))
     private void tradeeverything$reprice(CallbackInfo ci) {
+        try {
+            tradeeverything$repriceInner();
+        } catch (Throwable t) {
+            // Never propagate into the container-click / select-trade packet
+            // handlers — an escaping throw here breaks trade completion.
+            games.brennan.tradeeverything.TradeEverything.LOGGER
+                .warn("[TradeEverything] repricing failed; offer left as-is", t);
+        }
+    }
+
+    @Unique
+    private void tradeeverything$repriceInner() {
+        if (RepriceSuppression.isSuppressed()) return;
         if (!(merchant instanceof AbstractVillager villager)) return;
         if (villager.level().isClientSide()) return;
         if (villager.level().getServer() != null) {
@@ -65,10 +79,12 @@ public abstract class MerchantContainerMixin {
         tradeeverything$lastInput = input.isEmpty() ? ItemStack.EMPTY : input.copyWithCount(1);
 
         Item preferred = ItemValuation.selectBuyItem(villager, offers);
-        Item payout = input.isEmpty() ? preferred : TradePricer.payoutFor(input, preferred, TradeEverythingConfig.get());
+        Item payout = input.isEmpty() ? preferred
+            : TradePricer.payoutFor(input, preferred, offers, TradeEverythingConfig.get());
+        int payoutValue = TradePricer.payoutValueSixteenths(payout, offers);
         MerchantOffer replacement = input.isEmpty() || TradeExemptions.isExempt(input.getItem(), offers)
             ? SyntheticOfferFactory.placeholder(payout)
-            : TradePricer.quote(input, payout, TradeEverythingConfig.get())
+            : TradePricer.quote(input, payout, payoutValue, TradeEverythingConfig.get())
                 .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()))
                 .orElseGet(() -> SyntheticOfferFactory.placeholder(payout));
 

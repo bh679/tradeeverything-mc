@@ -4,6 +4,8 @@ import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.Optional;
 
@@ -28,28 +30,51 @@ public final class TradePricer {
      * would silently eat the difference (e.g. a diamond pickaxe capped at
      * 64 chicken instead of its ~9 emeralds).
      */
-    public static Item payoutFor(ItemStack input, Item preferred, TradeEverythingConfig config) {
+    public static Item payoutFor(ItemStack input, Item preferred, MerchantOffers offers, TradeEverythingConfig config) {
         if (input.isEmpty()) return preferred;
         double singleValue = ItemValuation.valueSixteenths(input) * config.resultMultiplier();
-        if (preferred != Items.EMERALD && overflowsStack(singleValue, preferred, config)) {
+        if (preferred != Items.EMERALD
+            && overflowsStack(singleValue, preferred, payoutValueSixteenths(preferred, offers), config)) {
             preferred = Items.EMERALD;
         }
         // Netherite armor exceeds even a stack of emeralds — escalate once more.
-        if (preferred == Items.EMERALD && overflowsStack(singleValue, Items.EMERALD, config)) {
+        if (preferred == Items.EMERALD
+            && overflowsStack(singleValue, Items.EMERALD, ItemValuation.valueSixteenths(new ItemStack(Items.EMERALD)), config)) {
             preferred = Items.EMERALD_BLOCK;
         }
         return preferred;
     }
 
-    private static boolean overflowsStack(double singleValue, Item payout, TradeEverythingConfig config) {
-        int payoutValue = ItemValuation.valueSixteenths(new ItemStack(payout));
+    private static boolean overflowsStack(double singleValue, Item payout, int payoutValue, TradeEverythingConfig config) {
         int cap = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
         return singleValue > (double) payoutValue * cap;
     }
 
-    public static Optional<Quote> quote(ItemStack input, Item payout, TradeEverythingConfig config) {
+    /**
+     * Value of one payout item, preferring the villager's OWN exchange rate:
+     * if the villager buys "N × item → M emeralds", one item is worth 16·M/N
+     * sixteenths <em>to this villager</em>. Without this, a payout priced off
+     * the global table can be worth half (or double) what the same villager
+     * pays for it one row down — which reads as the slot short-changing the
+     * player. Falls back to the global valuation when the villager doesn't
+     * trade the item.
+     */
+    public static int payoutValueSixteenths(Item payout, MerchantOffers offers) {
+        for (MerchantOffer offer : offers) {
+            if (SyntheticOfferFactory.isSynthetic(offer)) continue;
+            if (!offer.getResult().is(Items.EMERALD)) continue;
+            if (offer.getItemCostB().isPresent()) continue;
+            if (offer.getItemCostA().item().value() != payout) continue;
+            int n = offer.getItemCostA().count();
+            int m = offer.getResult().getCount();
+            if (n > 0 && m > 0) return Math.max(1, m * 16 / n);
+        }
+        return ItemValuation.valueSixteenths(new ItemStack(payout));
+    }
+
+    public static Optional<Quote> quote(ItemStack input, Item payout, int payoutValue, TradeEverythingConfig config) {
         int valueIn = ItemValuation.valueSixteenths(input);
-        int valueOut = ItemValuation.valueSixteenths(new ItemStack(payout));
+        int valueOut = payoutValue;
         if (valueIn <= 0 || valueOut <= 0) return Optional.empty();
 
         int maxCost = Math.min(Math.min(64, input.getMaxStackSize()), config.maxCostCount());

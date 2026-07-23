@@ -31,14 +31,22 @@ public final class ItemValuation {
     private static final List<ItemValueProvider> PROVIDERS = new CopyOnWriteArrayList<>();
     private static final List<BuyItemSelector> BUY_ITEM_SELECTORS = new CopyOnWriteArrayList<>();
     private static final Map<ResourceLocation, Integer> RUNTIME_OVERRIDES = new ConcurrentHashMap<>();
+    private static final java.util.Set<Object> FAILED_HOOKS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private ItemValuation() {}
 
     public static int valueSixteenths(ItemStack stack) {
         if (stack.isEmpty()) return 0;
         for (ItemValueProvider provider : PROVIDERS) {
-            OptionalInt value = provider.value(stack);
-            if (value.isPresent()) return Math.max(1, value.getAsInt());
+            // A throwing external provider must degrade to default valuation,
+            // never propagate into the trading packet handlers (a propagated
+            // throw wedges villagers in a phantom trading session).
+            try {
+                OptionalInt value = provider.value(stack);
+                if (value.isPresent()) return Math.max(1, value.getAsInt());
+            } catch (Throwable t) {
+                warnOnce(provider, "value provider", t);
+            }
         }
         return Math.max(1, adjustForStack(baseValue(stack), stack));
     }
@@ -111,10 +119,22 @@ public final class ItemValuation {
     /** Payout item for the villager: API selectors first, then the built-in default. */
     public static Item selectBuyItem(AbstractVillager villager, MerchantOffers offers) {
         for (BuyItemSelector selector : BUY_ITEM_SELECTORS) {
-            Optional<Item> chosen = selector.selectBuyItem(villager, offers);
-            if (chosen.isPresent()) return chosen.get();
+            try {
+                Optional<Item> chosen = selector.selectBuyItem(villager, offers);
+                if (chosen.isPresent()) return chosen.get();
+            } catch (Throwable t) {
+                warnOnce(selector, "buy-item selector", t);
+            }
         }
         return DefaultBuyItemSelector.select(offers);
+    }
+
+    /** One warning per registered hook object — a broken hook must not spam every click. */
+    private static void warnOnce(Object hook, String kind, Throwable t) {
+        if (FAILED_HOOKS.add(hook)) {
+            games.brennan.tradeeverything.TradeEverything.LOGGER.warn(
+                "[TradeEverything] registered {} {} threw — ignoring it from now on", kind, hook.getClass().getName(), t);
+        }
     }
 
     public static void registerProvider(ItemValueProvider provider) {
