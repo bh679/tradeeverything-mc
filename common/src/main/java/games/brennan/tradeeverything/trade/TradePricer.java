@@ -8,6 +8,7 @@ import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Solves the exchange (N × input → M × payout) for the synthetic offer.
@@ -108,6 +109,14 @@ public final class TradePricer {
             return config.allowUndervaluedTrades()
                 ? Optional.of(new Quote(maxCost, 1))
                 : Optional.empty();
+        }
+        // Never pay out an item's own crafting material at or above what the
+        // recipe consumes — otherwise craft-then-sell prints materials (an iron
+        // block must sell for fewer than the 9 iron ingots it's crafted from).
+        OptionalInt materialCap = RecipeValues.maxMaterialPayout(input.getItem(), payout, bestCost);
+        if (materialCap.isPresent()) {
+            bestResult = Math.min(bestResult, materialCap.getAsInt());
+            if (bestResult < 1) return Optional.empty(); // capped below one unit — not a viable trade
         }
         return Optional.of(new Quote(bestCost, bestResult));
     }

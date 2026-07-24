@@ -46,6 +46,8 @@ public final class RecipeValues {
     private static volatile RecipeManager indexedManager;
     private static volatile TradeEverythingConfig indexedConfig;
     private static volatile Map<Item, Integer> derivedValues = Map.of();
+    /** result item → ingredient item → {mandatoryCount, resultCount} of its cheapest-in-that-ingredient recipe. */
+    private static volatile Map<Item, Map<Item, int[]>> ingredientCounts = Map.of();
 
     private RecipeValues() {}
 
@@ -60,6 +62,7 @@ public final class RecipeValues {
             try {
                 Map<Item, List<IndexedRecipe>> index = buildIndex(server, manager);
                 derivedValues = solve(index);
+                ingredientCounts = buildIngredientCounts(index);
                 LOGGER.info("[TradeEverything] derived {} item values from {} craftable items in {} ms",
                     derivedValues.size(), index.size(), (System.nanoTime() - start) / 1_000_000);
             } catch (Throwable t) {
@@ -67,6 +70,7 @@ public final class RecipeValues {
                 // payment-slot click would hammer the server thread and rethrow
                 // inside packet handling. Rarity fallback covers valuation.
                 derivedValues = Map.of();
+                ingredientCounts = Map.of();
                 LOGGER.error("[TradeEverything] recipe value derivation failed — using rarity fallback", t);
             }
             indexedManager = manager;
@@ -78,6 +82,29 @@ public final class RecipeValues {
     public static OptionalInt derivedValue(Item item) {
         Integer value = derivedValues.get(item);
         return value != null ? OptionalInt.of(value) : OptionalInt.empty();
+    }
+
+    /**
+     * Largest payout of {@code ingredient} for {@code inputCount} of a crafted
+     * {@code result} that stays strictly cheaper than crafting them — i.e. the
+     * synthetic slot must never hand back as much of an item's own material as
+     * the recipe consumes. Without this, a discounted villager buy-rate can make
+     * an item sell for more of its material than it takes to make (an iron block
+     * paid out 13 iron ingots at a weaponsmith, yet crafts from only 9), a free
+     * material printer. Empty when {@code ingredient} is not a mandatory
+     * ingredient of any recipe for {@code result} (no cap applies).
+     */
+    public static OptionalInt maxMaterialPayout(Item result, Item ingredient, int inputCount) {
+        Map<Item, int[]> perResult = ingredientCounts.get(result);
+        if (perResult == null) return OptionalInt.empty();
+        int[] pair = perResult.get(ingredient);
+        if (pair == null) return OptionalInt.empty();
+        long mandatoryCount = pair[0];
+        long resultCount = pair[1];
+        // Largest M with M * resultCount < inputCount * mandatoryCount, so the
+        // payout is always at least one unit under the crafting cost.
+        long cap = ((long) inputCount * mandatoryCount - 1) / resultCount;
+        return OptionalInt.of((int) Math.max(0, cap));
     }
 
     private static Map<Item, List<IndexedRecipe>> buildIndex(MinecraftServer server, RecipeManager manager) {
@@ -174,6 +201,49 @@ public final class RecipeValues {
             cost += cheapest;
         }
         return cost;
+    }
+
+    /**
+     * Per (result, ingredient), the recipe consuming the FEWEST of that
+     * ingredient per output — the cheapest crafting path a player could exploit,
+     * so it bounds the arbitrage-free payout. Only mandatory slots count (an
+     * ingredient with alternatives can be substituted away, so it never forces
+     * that material). Comparison is on the ratio {@code mandatoryCount/resultCount}.
+     */
+    private static Map<Item, Map<Item, int[]>> buildIngredientCounts(Map<Item, List<IndexedRecipe>> index) {
+        Map<Item, Map<Item, int[]>> out = new HashMap<>();
+        for (Map.Entry<Item, List<IndexedRecipe>> entry : index.entrySet()) {
+            Item result = entry.getKey();
+            Map<Item, int[]> perResult = new HashMap<>();
+            for (IndexedRecipe recipe : entry.getValue()) {
+                Map<Item, Integer> mandatory = new HashMap<>();
+                for (ItemStack[] options : recipe.ingredientOptions()) {
+                    Item only = soleItem(options);
+                    if (only != null && only != result) mandatory.merge(only, 1, Integer::sum);
+                }
+                int resultCount = recipe.resultCount();
+                for (Map.Entry<Item, Integer> m : mandatory.entrySet()) {
+                    int mandatoryCount = m.getValue();
+                    int[] current = perResult.get(m.getKey());
+                    // Keep the smallest mandatoryCount/resultCount ratio (cross-multiply).
+                    if (current == null
+                        || (long) mandatoryCount * current[1] < (long) current[0] * resultCount) {
+                        perResult.put(m.getKey(), new int[]{mandatoryCount, resultCount});
+                    }
+                }
+            }
+            if (!perResult.isEmpty()) out.put(result, Map.copyOf(perResult));
+        }
+        return Map.copyOf(out);
+    }
+
+    /** The single item every option in this slot resolves to, or null if the slot admits alternatives. */
+    private static Item soleItem(ItemStack[] options) {
+        Item first = options[0].getItem();
+        for (ItemStack option : options) {
+            if (option.getItem() != first) return null;
+        }
+        return first;
     }
 
     /** Override → derived-so-far → rarity for uncraftable; -1 if not yet resolved. */
