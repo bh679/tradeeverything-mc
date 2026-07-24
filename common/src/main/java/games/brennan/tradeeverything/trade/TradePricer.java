@@ -113,11 +113,27 @@ public final class TradePricer {
         // Never pay out an item's own crafting material at or above what the
         // recipe consumes — otherwise craft-then-sell prints materials (an iron
         // block must sell for fewer than the 9 iron ingots it's crafted from).
-        OptionalInt materialCap = RecipeValues.maxMaterialPayout(input.getItem(), payout, bestCost);
+        // Only a plain, unmodified stack can feed that loop: enchanted or
+        // custom-stat items have value beyond their materials (already priced in
+        // by ItemValuation) and can't be freely re-crafted, so they're exempt.
+        OptionalInt materialCap = isPlainStack(input)
+            ? RecipeValues.maxMaterialPayout(input.getItem(), payout, bestCost)
+            : OptionalInt.empty();
         if (materialCap.isPresent()) {
             bestResult = Math.min(bestResult, materialCap.getAsInt());
             if (bestResult < 1) return Optional.empty(); // capped below one unit — not a viable trade
         }
         return Optional.of(new Quote(bestCost, bestResult));
+    }
+
+    /**
+     * True only for a freshly-crafted, unmodified stack — no enchantments,
+     * damage, custom name, attribute modifiers, or any other non-default
+     * component. Such a stack is interchangeable with its craftable base, so the
+     * material-printer cap applies; anything modified is worth more than its raw
+     * materials and is exempt.
+     */
+    private static boolean isPlainStack(ItemStack stack) {
+        return stack.getComponentsPatch().isEmpty();
     }
 }
