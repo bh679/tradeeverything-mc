@@ -74,6 +74,7 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:gold_block", 108);
         overrides.put("minecraft:copper_ingot", 2);
         overrides.put("minecraft:netherite_ingot", 1024);
+        overrides.put("minecraft:netherite_upgrade_smithing_template", 512);
         overrides.put("minecraft:netherite_scrap", 224);
         overrides.put("minecraft:ancient_debris", 256);
         overrides.put("minecraft:lapis_lazuli", 2);
@@ -83,6 +84,7 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:ender_pearl", 16);
         overrides.put("minecraft:blaze_rod", 16);
         overrides.put("minecraft:slime_ball", 4);
+        overrides.put("minecraft:bookshelf", 3);
         // Uncraftable gear — no recipe to derive from, and vanilla rarity says COMMON.
         overrides.put("minecraft:trident", 128);
         overrides.put("minecraft:saddle", 64);
@@ -142,10 +144,16 @@ public record TradeEverythingConfig(
             undervalued, wandering, recipes, enchantPerLevel);
     }
 
+    /**
+     * Merges the user's file entries over the shipped {@code fallback} defaults:
+     * new defaults (e.g. items added in a later version) appear automatically for
+     * existing configs, while any value the user changed overrides its default.
+     * The normalised file is rewritten on load, so the additions persist.
+     */
     private static Map<String, Integer> intMap(JsonObject root, String key, Map<String, Integer> fallback) {
         JsonElement el = root.get(key);
         if (el == null || !el.isJsonObject()) return fallback;
-        Map<String, Integer> out = new LinkedHashMap<>();
+        Map<String, Integer> out = new LinkedHashMap<>(fallback);
         for (Map.Entry<String, JsonElement> e : el.getAsJsonObject().entrySet()) {
             try {
                 int v = e.getValue().getAsInt();
