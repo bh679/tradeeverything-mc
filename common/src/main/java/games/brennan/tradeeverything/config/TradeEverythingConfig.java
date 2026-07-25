@@ -74,6 +74,7 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:gold_block", 108);
         overrides.put("minecraft:copper_ingot", 2);
         overrides.put("minecraft:netherite_ingot", 1024);
+        overrides.put("minecraft:netherite_upgrade_smithing_template", 512);
         overrides.put("minecraft:netherite_scrap", 224);
         overrides.put("minecraft:ancient_debris", 256);
         overrides.put("minecraft:lapis_lazuli", 2);
