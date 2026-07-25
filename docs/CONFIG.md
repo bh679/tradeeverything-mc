@@ -43,6 +43,7 @@ Full resolution order for any item: **item override → recipe-derived value (if
 - **Valid edits always apply.** If your JSON parses, your changes take effect.
 - A **bad value** (negative, zero, or not a number) → just that one line is dropped, the rest is kept. Check the log for a warning.
 - A **missing key** → filled from defaults. **Unknown key** → ignored.
+- **New defaults auto-update.** Values shipped in a later mod version (e.g. a newly priced item) are merged into your existing config automatically. Anything you've changed keeps your value; you only get the new entries you didn't already have.
 - A file with a **syntax error** (missing comma, unclosed brace) can't be read at all → the mod uses defaults for that run and **leaves your file untouched** so you can fix the typo. Look for `failed to read ... — using defaults` in the log.
 
 > Tip: paste your file into a JSON validator before loading if trades aren't changing.

@@ -143,10 +143,16 @@ public record TradeEverythingConfig(
             undervalued, wandering, recipes, enchantPerLevel);
     }
 
+    /**
+     * Merges the user's file entries over the shipped {@code fallback} defaults:
+     * new defaults (e.g. items added in a later version) appear automatically for
+     * existing configs, while any value the user changed overrides its default.
+     * The normalised file is rewritten on load, so the additions persist.
+     */
     private static Map<String, Integer> intMap(JsonObject root, String key, Map<String, Integer> fallback) {
         JsonElement el = root.get(key);
         if (el == null || !el.isJsonObject()) return fallback;
-        Map<String, Integer> out = new LinkedHashMap<>();
+        Map<String, Integer> out = new LinkedHashMap<>(fallback);
         for (Map.Entry<String, JsonElement> e : el.getAsJsonObject().entrySet()) {
             try {
                 int v = e.getValue().getAsInt();
