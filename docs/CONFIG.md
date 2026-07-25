@@ -30,6 +30,14 @@ Add any `"modid:item": value` line here. Works for modded items too.
 
 **`rarity_values_sixteenths`** — fallback price for anything *not* overridden, by vanilla rarity tier (`common` / `uncommon` / `rare` / `epic`). Broad, since most items are `common`.
 
+## Recipe derivation vs. overrides
+
+`derive_values_from_recipes` is a **single global switch**, not a per-item setting — there's no way to toggle it for one item in the config. When it's on, craftable items get priced from their recipe (taking the higher of the recipe value and their rarity value).
+
+The per-item lever is the **override**: an entry in `item_overrides_sixteenths` (or a runtime API override) wins *before* derivation is ever consulted, so it effectively disables derivation for that one item. If you don't like the recipe-derived price for something, just pin it in `item_overrides_sixteenths` and your fixed value takes over.
+
+Full resolution order for any item: **item override → recipe-derived value (if the flag is on) → rarity default.** Items with no crafting recipe (raw drops, spawn eggs, etc.) fall through to rarity regardless of the flag.
+
 ## Editing rules (important)
 
 - **Valid edits always apply.** If your JSON parses, your changes take effect.
