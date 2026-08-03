@@ -32,6 +32,8 @@ public final class ItemValuation {
     private static final List<BuyItemSelector> BUY_ITEM_SELECTORS = new CopyOnWriteArrayList<>();
     private static final Map<ResourceLocation, Integer> RUNTIME_OVERRIDES = new ConcurrentHashMap<>();
     private static final java.util.Set<Object> FAILED_HOOKS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** Value retained by a fully worn-out damageable item, as a fraction of its pristine value. */
+    private static final double MIN_DURABILITY_FACTOR = 0.1;
 
     private ItemValuation() {}
 
@@ -64,15 +66,21 @@ public final class ItemValuation {
 
     /**
      * Stack-specific adjustments: enchantment levels add value (config
-     * per-level, stored book enchants included); durability scales it —
-     * 10% when nearly broken, linearly up to 100% at ≥90% durability
-     * ({@code factor = min(1, 0.1 + remainingFraction)}).
+     * per-level, stored book enchants included); durability scales it linearly
+     * between {@link #MIN_DURABILITY_FACTOR} at fully worn and 100% at pristine
+     * ({@code factor = MIN + (1 - MIN) × remainingFraction}). The curve is
+     * strictly increasing on purpose — an earlier {@code min(1, 0.1 + remaining)}
+     * plateaued at full value for anything above 90% durability, so a lightly
+     * used tool priced identically to an unused one.
      */
     private static int adjustForStack(int base, ItemStack stack) {
         int value = base + enchantmentBonus(stack);
         if (stack.isDamageableItem() && stack.isDamaged()) {
-            double remaining = 1.0 - (double) stack.getDamageValue() / stack.getMaxDamage();
-            double factor = Math.min(1.0, 0.1 + remaining);
+            // Clamped: out-of-range NBT damage must not drive the factor
+            // negative (a negative value would flip the whole trade).
+            double remaining = Math.clamp(
+                1.0 - (double) stack.getDamageValue() / stack.getMaxDamage(), 0.0, 1.0);
+            double factor = MIN_DURABILITY_FACTOR + (1.0 - MIN_DURABILITY_FACTOR) * remaining;
             value = (int) Math.round(value * factor);
         }
         return value;
