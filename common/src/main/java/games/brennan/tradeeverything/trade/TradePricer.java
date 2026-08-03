@@ -1,6 +1,8 @@
 package games.brennan.tradeeverything.trade;
 
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -9,6 +11,7 @@ import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * Solves the exchange (N × input → M × payout) for the synthetic offer.
@@ -22,6 +25,10 @@ public final class TradePricer {
 
     /** Max relative rounding loss accepted before trying a bigger batch. */
     private static final double ACCEPTABLE_OVERPAY = 0.10;
+
+    /** Components that only record wear — see {@link #isCraftEquivalent(ItemStack)}. */
+    private static final Set<DataComponentType<?>> DURABILITY_COMPONENTS =
+        Set.of(DataComponents.DAMAGE, DataComponents.MAX_DAMAGE);
 
     private TradePricer() {}
 
@@ -116,7 +123,7 @@ public final class TradePricer {
         // Only a plain, unmodified stack can feed that loop: enchanted or
         // custom-stat items have value beyond their materials (already priced in
         // by ItemValuation) and can't be freely re-crafted, so they're exempt.
-        OptionalInt materialCap = isPlainStack(input)
+        OptionalInt materialCap = isCraftEquivalent(input)
             ? RecipeValues.maxMaterialPayout(input.getItem(), payout, bestCost)
             : OptionalInt.empty();
         if (materialCap.isPresent()) {
@@ -127,13 +134,19 @@ public final class TradePricer {
     }
 
     /**
-     * True only for a freshly-crafted, unmodified stack — no enchantments,
-     * damage, custom name, attribute modifiers, or any other non-default
-     * component. Such a stack is interchangeable with its craftable base, so the
-     * material-printer cap applies; anything modified is worth more than its raw
-     * materials and is exempt.
+     * True when the stack is worth no more than its craftable base — no
+     * enchantments, custom name, attribute modifiers, or any other non-default
+     * component. Such a stack is interchangeable with what the recipe produces,
+     * so the material-printer cap applies; anything modified is worth more than
+     * its raw materials and is exempt.
+     *
+     * <p>Durability is deliberately NOT disqualifying: damage only ever LOWERS a
+     * stack's worth (already priced in by {@link ItemValuation}), so a used tool
+     * must stay capped. Treating the DAMAGE patch as "modified" made a
+     * once-swung pickaxe skip the cap and pay out more than a pristine one —
+     * craft, swing once, sell for more materials than it took to make.</p>
      */
-    private static boolean isPlainStack(ItemStack stack) {
-        return stack.getComponentsPatch().isEmpty();
+    private static boolean isCraftEquivalent(ItemStack stack) {
+        return stack.getComponentsPatch().forget(DURABILITY_COMPONENTS::contains).isEmpty();
     }
 }
