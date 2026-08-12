@@ -59,5 +59,5 @@ Full resolution order for any item: **item override → recipe-derived value (if
 | `derive_values_from_recipes` | Auto-price craftable items from their recipes. |
 | `enchantment_value_per_level_sixteenths` | Added value per enchantment level. |
 | `cycle_placeholder_icon` | Cycle the empty Trade Anything slot's icon through obtainable items (default `true`; `false` shows a chest). |
-| `placeholder_icon_interval_ticks` | How long each icon is shown, in ticks (default `14` = 0.7 s, range 1–200). |
+| `placeholder_icon_interval_ticks` | How long each icon is shown, in ticks (default `40` = 2 s, range 1–200). |
 | `preview_held_item` | While holding an item on the cursor, the Trade Anything row previews that trade and its price (default `true`). |

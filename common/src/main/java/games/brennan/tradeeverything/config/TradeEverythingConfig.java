@@ -112,7 +112,7 @@ public record TradeEverythingConfig(
         // of value, so discount-driven buy/sell round-trips can't print emeralds.
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            0.75, 64, 64, true, true, true, 16, true, 14, true
+            0.75, 64, 64, true, true, true, 16, true, 40, true
         );
     }
 
