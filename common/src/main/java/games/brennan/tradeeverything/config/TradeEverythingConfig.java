@@ -33,7 +33,9 @@ public record TradeEverythingConfig(
     boolean allowUndervaluedTrades,
     boolean enableWanderingTrader,
     boolean deriveValuesFromRecipes,
-    int enchantmentValuePerLevelSixteenths
+    int enchantmentValuePerLevelSixteenths,
+    boolean cyclePlaceholderIcon,
+    int placeholderIconIntervalTicks
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
@@ -109,7 +111,7 @@ public record TradeEverythingConfig(
         // of value, so discount-driven buy/sell round-trips can't print emeralds.
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            0.75, 64, 64, true, true, true, 16
+            0.75, 64, 64, true, true, true, 16, true, 14
         );
     }
 
@@ -140,8 +142,11 @@ public record TradeEverythingConfig(
         boolean recipes = bool(root, "derive_values_from_recipes", defaults.deriveValuesFromRecipes());
         int enchantPerLevel = (int) clamp(number(root, "enchantment_value_per_level_sixteenths",
             defaults.enchantmentValuePerLevelSixteenths()), 0, 100_000);
+        boolean cycleIcon = bool(root, "cycle_placeholder_icon", defaults.cyclePlaceholderIcon());
+        int cycleTicks = (int) clamp(number(root, "placeholder_icon_interval_ticks",
+            defaults.placeholderIconIntervalTicks()), 1, 200);
         return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult,
-            undervalued, wandering, recipes, enchantPerLevel);
+            undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks);
     }
 
     /**
@@ -194,6 +199,8 @@ public record TradeEverythingConfig(
         root.addProperty("enable_wandering_trader", config.enableWanderingTrader());
         root.addProperty("derive_values_from_recipes", config.deriveValuesFromRecipes());
         root.addProperty("enchantment_value_per_level_sixteenths", config.enchantmentValuePerLevelSixteenths());
+        root.addProperty("cycle_placeholder_icon", config.cyclePlaceholderIcon());
+        root.addProperty("placeholder_icon_interval_ticks", config.placeholderIconIntervalTicks());
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);
