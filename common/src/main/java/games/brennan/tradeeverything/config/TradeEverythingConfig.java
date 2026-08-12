@@ -35,7 +35,8 @@ public record TradeEverythingConfig(
     boolean deriveValuesFromRecipes,
     int enchantmentValuePerLevelSixteenths,
     boolean cyclePlaceholderIcon,
-    int placeholderIconIntervalTicks
+    int placeholderIconIntervalTicks,
+    boolean previewHeldItem
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
@@ -111,7 +112,7 @@ public record TradeEverythingConfig(
         // of value, so discount-driven buy/sell round-trips can't print emeralds.
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            0.75, 64, 64, true, true, true, 16, true, 14
+            0.75, 64, 64, true, true, true, 16, true, 14, true
         );
     }
 
@@ -145,8 +146,9 @@ public record TradeEverythingConfig(
         boolean cycleIcon = bool(root, "cycle_placeholder_icon", defaults.cyclePlaceholderIcon());
         int cycleTicks = (int) clamp(number(root, "placeholder_icon_interval_ticks",
             defaults.placeholderIconIntervalTicks()), 1, 200);
+        boolean previewHeld = bool(root, "preview_held_item", defaults.previewHeldItem());
         return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult,
-            undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks);
+            undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks, previewHeld);
     }
 
     /**
@@ -201,6 +203,7 @@ public record TradeEverythingConfig(
         root.addProperty("enchantment_value_per_level_sixteenths", config.enchantmentValuePerLevelSixteenths());
         root.addProperty("cycle_placeholder_icon", config.cyclePlaceholderIcon());
         root.addProperty("placeholder_icon_interval_ticks", config.placeholderIconIntervalTicks());
+        root.addProperty("preview_held_item", config.previewHeldItem());
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);

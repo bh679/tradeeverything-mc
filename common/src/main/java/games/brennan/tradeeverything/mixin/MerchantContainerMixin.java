@@ -1,21 +1,14 @@
 package games.brennan.tradeeverything.mixin;
 
-import games.brennan.tradeeverything.config.TradeEverythingConfig;
-import games.brennan.tradeeverything.trade.BuybackPricer;
-import games.brennan.tradeeverything.trade.ItemValuation;
+import games.brennan.tradeeverything.trade.OfferQuoter;
 import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.RecipeValues;
 import games.brennan.tradeeverything.trade.RepriceSuppression;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
-import games.brennan.tradeeverything.trade.TradeExemptions;
-import games.brennan.tradeeverything.trade.TradePricer;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.inventory.MerchantContainer;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.Merchant;
-import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -79,22 +72,7 @@ public abstract class MerchantContainerMixin {
         if (ItemStack.isSameItemSameComponents(input, tradeeverything$lastInput)) return;
         tradeeverything$lastInput = input.isEmpty() ? ItemStack.EMPTY : input.copyWithCount(1);
 
-        Item preferred = ItemValuation.selectBuyItem(villager, offers);
-        Item payout = input.isEmpty() ? preferred
-            : TradePricer.payoutFor(input, preferred, offers, TradeEverythingConfig.get());
-        int payoutValue = TradePricer.payoutValueSixteenths(payout, offers);
-        MerchantOffer replacement;
-        if (input.isEmpty() || TradeExemptions.isExempt(input, offers)) {
-            replacement = SyntheticOfferFactory.placeholder(payout);
-        } else {
-            // The villager's own stock buys back at 10% under its live price.
-            replacement = BuybackPricer.buybackOffer(input, offers)
-                .orElseGet(() -> TradePricer.quote(input, payout, payoutValue, TradeEverythingConfig.get())
-                    .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()))
-                    .orElseGet(() -> SyntheticOfferFactory.placeholder(payout)));
-        }
-
-        offers.set(0, replacement);
+        offers.set(0, OfferQuoter.quoteOrPlaceholder(villager, input, offers));
         OfferResync.send(villager);
     }
 }
