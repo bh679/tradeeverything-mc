@@ -88,7 +88,7 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:ender_pearl", 16);
         overrides.put("minecraft:blaze_rod", 16);
         overrides.put("minecraft:slime_ball", 4);
-        overrides.put("minecraft:bookshelf", 3);
+        overrides.put("minecraft:bookshelf", 6);
         // Uncraftable gear — no recipe to derive from, and vanilla rarity says COMMON.
         overrides.put("minecraft:trident", 128);
         overrides.put("minecraft:saddle", 64);
