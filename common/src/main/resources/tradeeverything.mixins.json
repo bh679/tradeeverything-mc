@@ -12,7 +12,9 @@
     "ServerPlayerTickMixin",
     "SmithingTransformRecipeAccessor"
   ],
-  "client": [],
+  "client": [
+    "client.ContainerScreenKeyMixin"
+  ],
   "server": [],
   "injectors": {
     "defaultRequire": 1

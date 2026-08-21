@@ -75,7 +75,19 @@ public final class SyntheticOfferFactory {
      * components instead), which is what makes it safe to swap the icon.
      */
     public static boolean isPlaceholder(MerchantOffer offer) {
-        return isSynthetic(offer) && offer.getItemCostA().components().equals(PLACEHOLDER_PREDICATE);
+        return isSynthetic(offer) && hasPlaceholderCost(offer);
+    }
+
+    /**
+     * The components-only half of {@link #isPlaceholder}, for code that cannot
+     * see the {@link SyntheticOffer} flag: that flag is set server-side and is
+     * NOT part of the offer's stream codec, so a client-side reader only ever
+     * sees {@code false}. The cost's {@link DataComponentPredicate} IS synced
+     * (via {@code ItemCost.STREAM_CODEC}), which makes this predicate the
+     * client's only reliable way to recognise the Trade Anything row.
+     */
+    public static boolean hasPlaceholderCost(MerchantOffer offer) {
+        return offer.getItemCostA().components().equals(PLACEHOLDER_PREDICATE);
     }
 
     private static MerchantOffer mark(MerchantOffer offer) {
