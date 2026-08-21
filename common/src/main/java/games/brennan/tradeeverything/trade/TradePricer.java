@@ -33,10 +33,12 @@ public final class TradePricer {
     private TradePricer() {}
 
     /**
-     * Upgrades the payout to emeralds when a single input item is worth more
-     * than a full stack of the preferred payout — otherwise the stack cap
-     * would silently eat the difference (e.g. a diamond pickaxe capped at
-     * 64 chicken instead of its ~9 emeralds).
+     * Picks the payout item at a granularity the input can actually pay for.
+     * Upgrades to emeralds (then emerald blocks) when a single input item is
+     * worth more than a full stack of the preferred payout — otherwise the
+     * stack cap would silently eat the difference (e.g. a diamond pickaxe
+     * capped at 64 chicken instead of its ~9 emeralds) — and downgrades to
+     * emeralds when even a full batch of the input can't afford one unit.
      */
     public static Item payoutFor(ItemStack input, Item preferred, MerchantOffers offers, TradeEverythingConfig config) {
         if (input.isEmpty()) return preferred;
@@ -47,8 +49,20 @@ public final class TradePricer {
         }
         // Netherite armor exceeds even a stack of emeralds — escalate once more.
         if (preferred == Items.EMERALD
-            && overflowsStack(singleValue, Items.EMERALD, ItemValuation.valueSixteenths(new ItemStack(Items.EMERALD)), config)) {
+            && overflowsStack(singleValue, Items.EMERALD, emeraldValue(), config)) {
             preferred = Items.EMERALD_BLOCK;
+        }
+        // Mirror of the escalation: a payout unit that a FULL batch of the input
+        // can't afford leaves quote() nothing to do but hand over one whole unit
+        // anyway (the allow_undervalued_trades fallback), so the player is paid
+        // more than they gave. Harmless at emerald granularity, an emerald
+        // printer at 144-sixteenth emerald blocks (64 wheat → 9 emeralds). Step
+        // down to emeralds so that fallback can never overpay by more than one.
+        if (preferred != Items.EMERALD) {
+            int unit = payoutValueSixteenths(preferred, offers);
+            if (unit > emeraldValue() && maxBatchValue(input, singleValue, config) < unit) {
+                preferred = Items.EMERALD;
+            }
         }
         return preferred;
     }
@@ -56,6 +70,15 @@ public final class TradePricer {
     private static boolean overflowsStack(double singleValue, Item payout, int payoutValue, TradeEverythingConfig config) {
         int cap = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
         return singleValue > (double) payoutValue * cap;
+    }
+
+    /** Discounted worth of the largest batch {@link #quote} may charge for. */
+    private static double maxBatchValue(ItemStack input, double singleValue, TradeEverythingConfig config) {
+        return singleValue * Math.min(Math.min(64, input.getMaxStackSize()), config.maxCostCount());
+    }
+
+    private static int emeraldValue() {
+        return ItemValuation.valueSixteenths(new ItemStack(Items.EMERALD));
     }
 
     /**
