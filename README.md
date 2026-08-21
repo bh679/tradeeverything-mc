@@ -11,6 +11,8 @@ worth**, scaling all the way up (one diamond buys a stack of coal).
 ## Features
 
 - Works on villagers and wandering traders (toggleable)
+- **Space** refills the slot with the last item you traded, as many as you're
+  carrying — the repeat-trade shortcut vanilla gives its own trades
 - Exact-stack matching: enchanted or damaged items are valued and matched precisely
 - No profession XP, no restock interference, never saved to villager data
 - Fully configurable: `config/tradeeverything.json` — rarity tier values, per-item
@@ -22,6 +24,8 @@ worth**, scaling all the way up (one diamond buys a stack of coal).
 - If the item you insert also matches one of the villager's real trades, the top slot
   takes priority for auto-matching — click the specific trade row to use the real one.
 - Third-party mods listening to villager trade events will observe synthetic trades.
+- The space-bar refill is client-side: on a server it works for players who have the
+  mod installed, and vanilla clients simply keep filling the slot by hand.
 
 ## Building
 
