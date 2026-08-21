@@ -9,10 +9,16 @@ import net.minecraft.world.item.trading.MerchantOffers;
 import java.util.Optional;
 
 /**
- * Default payout choice: the first non-emerald cost item across the
+ * Default payout choice: the first non-currency cost item across the
  * villager's real offers — i.e. something the villager is actually buying
  * (wheat, coal, paper…). Wandering traders only buy emeralds, so they fall
  * back to paying out emeralds.
+ *
+ * <p>Currency here means emeralds <em>and</em> emerald blocks, the same pair
+ * {@link TradeExemptions} refuses. A cost row priced in emerald blocks (Dungeon
+ * Train reprices expensive enchanted gear that way) is a price tag, not goods
+ * the villager buys — picking it as the payout item made the slot hand out
+ * 9-emerald blocks at goods-sized rates.</p>
  */
 public final class DefaultBuyItemSelector {
 
@@ -22,13 +28,18 @@ public final class DefaultBuyItemSelector {
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             Item costA = offer.getItemCostA().item().value();
-            if (costA != Items.EMERALD) return costA;
+            if (!isCurrency(costA)) return costA;
             Optional<ItemCost> costB = offer.getItemCostB();
             if (costB.isPresent()) {
                 Item item = costB.get().item().value();
-                if (item != Items.EMERALD) return item;
+                if (!isCurrency(item)) return item;
             }
         }
         return Items.EMERALD;
+    }
+
+    /** Emeralds and emerald blocks are prices, never payout goods. */
+    private static boolean isCurrency(Item item) {
+        return item == Items.EMERALD || item == Items.EMERALD_BLOCK;
     }
 }
