@@ -84,6 +84,7 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:redstone", 2);
         overrides.put("minecraft:quartz", 4);
         overrides.put("minecraft:amethyst_shard", 4);
+        overrides.put("minecraft:obsidian", 4);
         overrides.put("minecraft:ender_pearl", 16);
         overrides.put("minecraft:blaze_rod", 16);
         overrides.put("minecraft:slime_ball", 4);
