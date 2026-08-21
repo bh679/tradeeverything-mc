@@ -88,6 +88,10 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:ender_pearl", 16);
         overrides.put("minecraft:blaze_rod", 16);
         overrides.put("minecraft:slime_ball", 4);
+        // A book derives to ~7 (3 paper at 1 + leather, itself floored at 4 by the
+        // rabbit-hide recipe) — far too rich for a librarian staple. Pin it at a
+        // third of that: 2 → 8 books per emerald.
+        overrides.put("minecraft:book", 2);
         overrides.put("minecraft:bookshelf", 6);
         // Uncraftable gear — no recipe to derive from, and vanilla rarity says COMMON.
         overrides.put("minecraft:trident", 128);
