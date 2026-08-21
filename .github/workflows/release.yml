@@ -185,26 +185,33 @@ jobs:
           retry-delay: 10000
           fail-mode: warn
 
-      - name: Set Modrinth side metadata (server-side only)
+      - name: Set Modrinth side metadata (server required, client optional)
         if: steps.publish_check.outputs.modrinth == 'true'
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
         run: |
-          # This mod runs entirely server-side (all logic targets ServerPlayer;
-          # the integrated server covers singleplayer), so it is "Server-side
-          # only / Works in singleplayer" on Modrinth. mc-publish cannot set
-          # environment, so re-assert the legacy project-level side fields each
-          # release to stop them drifting back to "both required".
-          # NOTE: the new per-version environment *tag* is web-UI-only (no API
-          # field as of 2025-08) — set it once under Project → Settings →
-          # Environment; it persists across versions.
+          # The gameplay logic is server-side (all of it targets ServerPlayer;
+          # the integrated server covers singleplayer), so the server is
+          # "required". Since v0.5.0 the mod also ships a genuinely client-side
+          # feature — the space-bar refill for the Trade Anything slot
+          # (client/TradeAnythingRefill + mixin/client/ContainerScreenKeyMixin).
+          # It is pure convenience: the mod works fully against a vanilla
+          # client, so the client is "optional", NOT "unsupported" —
+          # "unsupported" would tell launchers not to install it client-side
+          # and suppress that feature. mc-publish cannot set these, so
+          # re-assert the project-level side fields each release to stop them
+          # drifting back to "both required".
+          # NOTE: the per-version environment *tag* shown on Modrinth is derived
+          # from the project's environment setting and is not written by
+          # mc-publish — set it once under Project → Settings → Environment
+          # (server-required / client-optional); it persists across versions.
           HTTP_CODE=$(curl -sS -o /tmp/modrinth_env.out -w "%{http_code}" \
             -X PATCH "https://api.modrinth.com/v2/project/${MODRINTH_PROJECT_ID}" \
             -H "Authorization: ${MODRINTH_TOKEN}" \
             -H "User-Agent: bh679/tradeeverything-mc (release CI)" \
             -H "Content-Type: application/json" \
-            -d '{"client_side":"unsupported","server_side":"required"}')
+            -d '{"client_side":"optional","server_side":"required"}')
           echo "Modrinth PATCH /project responded ${HTTP_CODE}"
           if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
             cat /tmp/modrinth_env.out || true
