@@ -15,6 +15,10 @@ worth**, scaling all the way up (one diamond buys a stack of coal).
   carrying — the repeat-trade shortcut vanilla gives its own trades
 - Exact-stack matching: enchanted or damaged items are valued and matched precisely
 - No profession XP, no restock interference, never saved to villager data
+- One item at a time: anything worth at least one payout item is quoted singly with the
+  change rounded down (1 ominous banner → 3 emeralds); only items too cheap to buy a
+  single payout item are batched. Set `prefer_single_item_trades: false` for the old
+  exact-change batching
 - Fully configurable: `config/tradeeverything.json` — rarity tier values, per-item
   overrides, result multiplier, count caps
 - Java API for other mods: `games.brennan.tradeeverything.api.TradeEverythingApi`

@@ -15,8 +15,11 @@ import java.util.Set;
 
 /**
  * Solves the exchange (N × input → M × payout) for the synthetic offer.
- * Picks the (N, M) pair that minimises the player's relative overpay,
- * with counts clamped to stack sizes and the config caps.
+ * With {@code prefer_single_item_trades} (the default) a single input item is
+ * quoted on its own whenever it can afford one payout unit, and the remainder
+ * rounds down; otherwise — and always for inputs too cheap to buy a unit alone —
+ * it picks the (N, M) pair that minimises the player's relative overpay. Counts
+ * are clamped to stack sizes and the config caps.
  */
 public final class TradePricer {
 
@@ -122,6 +125,15 @@ public final class TradePricer {
             int m = (int) Math.floor(inValue / valueOut);
             if (m < 1) continue;
             m = Math.min(m, maxResult);
+            // One item that already affords a payout unit is quoted alone, change
+            // rounded down — trading one at a time reads better than a batch priced
+            // for exact change (1 ominous banner → 3 emeralds, not 2 → 7). Cheaper
+            // inputs never reach here at n = 1 (m < 1), so they still batch.
+            if (config.preferSingleItemTrades() && n == 1) {
+                bestCost = n;
+                bestResult = m;
+                break;
+            }
             double score = (inValue - m * (double) valueOut) / inValue; // relative overpay
             if (score <= ACCEPTABLE_OVERPAY) {
                 bestCost = n;

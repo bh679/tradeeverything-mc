@@ -36,7 +36,8 @@ public record TradeEverythingConfig(
     int enchantmentValuePerLevelSixteenths,
     boolean cyclePlaceholderIcon,
     int placeholderIconIntervalTicks,
-    boolean previewHeldItem
+    boolean previewHeldItem,
+    boolean preferSingleItemTrades
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
@@ -115,9 +116,11 @@ public record TradeEverythingConfig(
 
         // result_multiplier 0.75 = the villager's merchant margin: payouts are 75%
         // of value, so discount-driven buy/sell round-trips can't print emeralds.
+        // prefer_single_item_trades: quote one item at a time whenever one item can
+        // afford a payout unit, rather than batching to shave the rounding loss.
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            0.75, 64, 64, true, true, true, 16, true, 40, true
+            0.75, 64, 64, true, true, true, 16, true, 40, true, true
         );
     }
 
@@ -152,8 +155,10 @@ public record TradeEverythingConfig(
         int cycleTicks = (int) clamp(number(root, "placeholder_icon_interval_ticks",
             defaults.placeholderIconIntervalTicks()), 1, 200);
         boolean previewHeld = bool(root, "preview_held_item", defaults.previewHeldItem());
+        boolean singleItem = bool(root, "prefer_single_item_trades", defaults.preferSingleItemTrades());
         return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult,
-            undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks, previewHeld);
+            undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks, previewHeld,
+            singleItem);
     }
 
     /**
@@ -209,6 +214,7 @@ public record TradeEverythingConfig(
         root.addProperty("cycle_placeholder_icon", config.cyclePlaceholderIcon());
         root.addProperty("placeholder_icon_interval_ticks", config.placeholderIconIntervalTicks());
         root.addProperty("preview_held_item", config.previewHeldItem());
+        root.addProperty("prefer_single_item_trades", config.preferSingleItemTrades());
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);
