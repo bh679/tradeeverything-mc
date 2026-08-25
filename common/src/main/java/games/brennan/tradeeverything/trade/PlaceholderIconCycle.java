@@ -13,6 +13,7 @@ import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -26,15 +27,18 @@ import java.util.Set;
  *       priced by {@link OfferQuoter}, so the player sees what they'd get
  *       before dropping it in. The cursor stack is server-side state, so this
  *       needs no client code and works on a vanilla client.</li>
- *   <li><b>Empty-handed</b> — the icon cycles through obtainable items
- *       ({@link IconCyclePool}), skipping everything the villager already
- *       trades, so the row reads as "any item goes here".</li>
+ *   <li><b>Empty-handed</b> — the icon cycles through the player's own
+ *       tradeable items ({@link InventoryIconPool}), so every icon is a trade
+ *       they could make right now; carrying nothing this villager wants falls
+ *       back to cycling obtainable items at large ({@link IconCyclePool}), so
+ *       the row still reads as "any item goes here". Either way it skips
+ *       everything the villager already trades.</li>
  * </ul>
  *
  * <p>Both are pure functions of state the tick can see (game time, villager id,
- * cursor stack), so there is nothing to track between ticks and nothing to
- * clean up — and once an item is actually in the slot, the row is a real quote
- * and this leaves it alone entirely.</p>
+ * cursor stack, the player's inventory), so there is nothing to track between
+ * ticks and nothing to clean up — and once an item is actually in the slot,
+ * the row is a real quote and this leaves it alone entirely.</p>
  */
 public final class PlaceholderIconCycle {
 
@@ -94,13 +98,31 @@ public final class PlaceholderIconCycle {
         }
 
         long step = villager.level().getGameTime() / Math.max(1, config.placeholderIconIntervalTicks());
-        Item icon = IconCyclePool.at(step, villager.getId(), traded);
+        Item icon = icon(player, villager, offers, traded, step);
         boolean showing = SyntheticOfferFactory.isPlaceholder(current)
             && current.getItemCostA().item().value() == icon;
         if (showing) return;
 
         offers.set(0, SyntheticOfferFactory.placeholder(ItemValuation.selectBuyItem(villager, offers), icon));
         OfferResync.send(villager);
+    }
+
+    /**
+     * What the empty row shows this tick: the player's own tradeable items when
+     * they have any ({@link InventoryIconPool}), otherwise the registry-wide
+     * cycle ({@link IconCyclePool}).
+     *
+     * <p>Preferring the inventory makes the row concrete — the icons are things
+     * the player can act on immediately — while the registry fallback keeps the
+     * "any item goes here" reading for a player carrying nothing this villager
+     * wants. Both are salted by villager id so two villagers never cycle in
+     * lockstep.</p>
+     */
+    private static Item icon(ServerPlayer player, AbstractVillager villager,
+                             MerchantOffers offers, Set<Item> traded, long step) {
+        List<Item> owned = InventoryIconPool.candidates(player, villager, offers, traded);
+        if (owned.isEmpty()) return IconCyclePool.at(step, villager.getId(), traded);
+        return owned.get((int) Math.floorMod(step + villager.getId(), owned.size()));
     }
 
     /** Every item this villager already trades for or with — never previewed, never shown as an icon. */
