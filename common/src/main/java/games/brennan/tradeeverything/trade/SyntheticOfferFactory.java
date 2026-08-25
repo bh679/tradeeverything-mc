@@ -65,6 +65,21 @@ public final class SyntheticOfferFactory {
         return mark(new MerchantOffer(cost, Optional.empty(), new ItemStack(payout, resultCount), 0, MAX_USES, 0, 0.0f));
     }
 
+    /**
+     * Pre-insertion placeholder row carrying a real quote's numbers: the quoted
+     * cost item and count, and the payout the quote settled on. Only the cost's
+     * components are swapped back to {@link #PLACEHOLDER_PREDICATE}, so the row
+     * keeps its "Trade Anything" label, stays unmatchable, and still reads as a
+     * placeholder to {@link #isPlaceholder} / {@link #hasPlaceholderCost} — those
+     * compare components only, never the count, which is what leaves the counts
+     * free to show the real price.
+     */
+    public static MerchantOffer pricedPlaceholder(MerchantOffer quote) {
+        ItemCost quoted = quote.getItemCostA();
+        ItemCost cost = new ItemCost(quoted.item(), quoted.count(), PLACEHOLDER_PREDICATE);
+        return mark(new MerchantOffer(cost, Optional.empty(), quote.getResult().copy(), 0, MAX_USES, 0, 0.0f));
+    }
+
     public static boolean isSynthetic(MerchantOffer offer) {
         return offer instanceof SyntheticOffer synthetic && synthetic.tradeeverything$isSynthetic();
     }
