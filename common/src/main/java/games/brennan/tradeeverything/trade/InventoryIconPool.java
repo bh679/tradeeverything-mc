@@ -5,6 +5,7 @@ import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.ArrayList;
@@ -24,33 +25,41 @@ import java.util.Set;
  *
  * <p>Order is inventory order, deduplicated by item, so the sequence is stable
  * while the inventory is — no state to keep between ticks.</p>
+ *
+ * <p>The quote each candidate had to pass to get in is kept rather than thrown
+ * away, so the row can show what the item actually fetches instead of a flat
+ * placeholder count. Pricing the pool therefore costs nothing extra.</p>
  */
 public final class InventoryIconPool {
 
     private InventoryIconPool() {}
 
     /**
-     * Distinct items from {@code player}'s inventory that {@link OfferQuoter}
-     * can price for {@code villager}, skipping {@code excluded} (everything the
-     * villager already trades). Empty if the player has nothing tradeable.
+     * A quote per distinct item in {@code player}'s inventory that
+     * {@link OfferQuoter} can price for {@code villager}, skipping
+     * {@code excluded} (everything the villager already trades). Empty if the
+     * player has nothing tradeable.
+     *
+     * <p>Each quote prices that player's actual stack, so a damaged or enchanted
+     * tool is valued as the one they are carrying.</p>
      */
-    public static List<Item> tradeable(ServerPlayer player, AbstractVillager villager,
-                                       MerchantOffers offers, Set<Item> excluded) {
+    public static List<MerchantOffer> tradeable(ServerPlayer player, AbstractVillager villager,
+                                                MerchantOffers offers, Set<Item> excluded) {
         Inventory inventory = player.getInventory();
         Set<Item> seen = new LinkedHashSet<>();
-        List<Item> candidates = new ArrayList<>();
+        List<MerchantOffer> candidates = new ArrayList<>();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty()) continue;
             Item item = stack.getItem();
             if (excluded.contains(item) || !seen.add(item)) continue;
-            if (OfferQuoter.quote(villager, stack, offers).isPresent()) candidates.add(item);
+            OfferQuoter.quote(villager, stack, offers).ifPresent(candidates::add);
         }
         return candidates;
     }
 
-    /** The item shown for cycle {@code step}, offset by {@code salt} (the villager id). */
-    public static Item at(List<Item> candidates, long step, int salt) {
+    /** The quote shown for cycle {@code step}, offset by {@code salt} (the villager id). */
+    public static MerchantOffer at(List<MerchantOffer> candidates, long step, int salt) {
         return candidates.get((int) Math.floorMod(step + salt, candidates.size()));
     }
 }

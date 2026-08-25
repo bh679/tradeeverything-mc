@@ -32,7 +32,9 @@ import java.util.Set;
  *       shows what they could drop in right now; carrying nothing tradeable it
  *       falls back to cycling obtainable items at large ({@link IconCyclePool}),
  *       so the row still reads as "any item goes here". Either way everything
- *       the villager already trades is skipped.</li>
+ *       the villager already trades is skipped, and every step is priced by
+ *       {@link OfferQuoter} — the same quote insertion would produce — so the
+ *       row shows the real rate before the player commits to it.</li>
  * </ul>
  *
  * <p>Both are pure functions of state the tick can see (game time, villager id,
@@ -61,6 +63,12 @@ public final class PlaceholderIconCycle {
         if (!(player.containerMenu instanceof MerchantMenu menu)) return;
         MerchantMenuAccessor accessor = (MerchantMenuAccessor) menu;
         if (!(accessor.tradeeverything$getTrader() instanceof AbstractVillager villager)) return;
+        // Recipe-derived values back the quotes below. Repricing indexes them on
+        // insertion; without the same call here the cycle would quote from rarity
+        // alone and contradict the price shown once the item is actually dropped in.
+        if (villager.level().getServer() != null) {
+            RecipeValues.ensureIndexed(villager.level().getServer());
+        }
 
         MerchantOffers offers = villager.getOffers();
         if (offers.isEmpty()) return;
@@ -106,14 +114,27 @@ public final class PlaceholderIconCycle {
         if (!stale && time % interval != 0) return;
 
         long step = time / interval;
-        List<Item> owned = InventoryIconPool.tradeable(player, villager, offers, traded);
-        Item icon = owned.isEmpty()
-            ? IconCyclePool.at(step, villager.getId(), traded)
-            : InventoryIconPool.at(owned, step, villager.getId());
-        if (!stale && current.getItemCostA().item().value() == icon) return;
+        List<MerchantOffer> owned = InventoryIconPool.tradeable(player, villager, offers, traded);
+        MerchantOffer next = owned.isEmpty()
+            ? fallbackRow(villager, offers, IconCyclePool.at(step, villager.getId(), traded))
+            : SyntheticOfferFactory.pricedPlaceholder(InventoryIconPool.at(owned, step, villager.getId()));
+        if (!stale && current.getItemCostA().item().value() == next.getItemCostA().item().value()) return;
 
-        offers.set(0, SyntheticOfferFactory.placeholder(ItemValuation.selectBuyItem(villager, offers), icon));
+        offers.set(0, next);
         OfferResync.send(villager);
+    }
+
+    /**
+     * The registry-wide fallback row for {@code icon}, priced like the inventory
+     * pool so every cycle step answers "what would this fetch?". The player is
+     * carrying nothing tradeable, so there is no stack of theirs to price and a
+     * plain one stands in. An icon that cannot be quoted at all keeps the flat
+     * placeholder rather than showing a dead row.
+     */
+    private static MerchantOffer fallbackRow(AbstractVillager villager, MerchantOffers offers, Item icon) {
+        return OfferQuoter.quote(villager, new ItemStack(icon), offers)
+            .map(SyntheticOfferFactory::pricedPlaceholder)
+            .orElseGet(() -> SyntheticOfferFactory.placeholder(ItemValuation.selectBuyItem(villager, offers), icon));
     }
 
     /** Every item this villager already trades for or with — never previewed, never shown as an icon. */
