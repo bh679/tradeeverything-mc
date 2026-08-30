@@ -10,10 +10,12 @@ import net.minecraft.world.item.trading.MerchantOffers;
  * Items the "Trade Anything" slot refuses: emeralds, anything the villager
  * already buys through a real offer (those belong to the vanilla trades,
  * which auto-match correctly once the synthetic offer stays on its
- * unmatchable placeholder), and anything the villager <b>sells</b> — buying
+ * unmatchable placeholder), anything the villager <b>sells</b> — buying
  * back its own goods would let gossip/hero discounts turn its sell-side
  * prices into an emerald printer (buy discounted axe → sell axe for coal →
- * coal → emerald → repeat).
+ * coal → emerald → repeat) — and worthless junk (snowballs) that the value
+ * system can't price at true zero, since every value is floored at 1/16
+ * emerald ({@link ItemValuation#valueSixteenths}).
  */
 public final class TradeExemptions {
 
@@ -22,6 +24,7 @@ public final class TradeExemptions {
     public static boolean isExempt(ItemStack input, MerchantOffers offers) {
         Item item = input.getItem();
         if (item == Items.EMERALD || item == Items.EMERALD_BLOCK) return true;
+        if (item == Items.SNOWBALL) return true;
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             // Buy-side: item-level — commodities the villager buys belong to
