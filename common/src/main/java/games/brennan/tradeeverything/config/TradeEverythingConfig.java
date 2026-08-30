@@ -100,7 +100,8 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:iron_horse_armor", 64);
         overrides.put("minecraft:golden_horse_armor", 48);
         overrides.put("minecraft:diamond_horse_armor", 256);
-        overrides.put("minecraft:totem_of_undying", 128);
+        // 3 emerald blocks (144 each) — a totem shouldn't be a casual buy.
+        overrides.put("minecraft:totem_of_undying", 432);
         overrides.put("minecraft:heavy_core", 256);
         overrides.put("minecraft:breeze_rod", 16);
         overrides.put("minecraft:shulker_shell", 64);
