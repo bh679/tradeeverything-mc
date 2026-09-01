@@ -23,6 +23,10 @@ import java.util.Map;
  * a COMMON item defaults to 1 (16 items = 1 emerald), an emerald itself is 16.
  * Unknown keys are dropped, invalid values clamped, missing keys filled from
  * defaults, and the normalised file is written back on load.</p>
+ *
+ * <p>{@code payout_multipliers} is the one fractional map: a per-payout-item
+ * factor on top of {@link #resultMultiplier()}, so a premium currency can hand
+ * over a fraction of face value.</p>
  */
 public record TradeEverythingConfig(
     Map<String, Integer> rarityValuesSixteenths,
@@ -37,12 +41,17 @@ public record TradeEverythingConfig(
     boolean cyclePlaceholderIcon,
     int placeholderIconIntervalTicks,
     boolean previewHeldItem,
-    boolean preferSingleItemTrades
+    boolean preferSingleItemTrades,
+    Map<String, Double> payoutMultipliers
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String FILE_NAME = "tradeeverything.json";
+
+    /** Bounds shared by {@code result_multiplier} and every {@code payout_multipliers} entry. */
+    private static final double MIN_MULTIPLIER = 0.01;
+    private static final double MAX_MULTIPLIER = 100.0;
 
     private static volatile TradeEverythingConfig instance = defaults();
 
@@ -115,13 +124,20 @@ public record TradeEverythingConfig(
         overrides.put("minecraft:armadillo_scute", 8);
         overrides.put("minecraft:phantom_membrane", 16);
 
+        // Premium payout currencies hand over a FRACTION of face value: paid in
+        // diamonds, a trade is worth half what the same trade pays in ordinary
+        // goods. Any item id can be added; 1.0 disables the penalty for that one.
+        Map<String, Double> payoutMultipliers = new LinkedHashMap<>();
+        payoutMultipliers.put("minecraft:diamond", 0.5);
+
         // result_multiplier 0.75 = the villager's merchant margin: payouts are 75%
         // of value, so discount-driven buy/sell round-trips can't print emeralds.
         // prefer_single_item_trades: quote one item at a time whenever one item can
         // afford a payout unit, rather than batching to shave the rounding loss.
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
-            0.75, 64, 64, true, true, true, 16, true, 40, true, true
+            0.75, 64, 64, true, true, true, 16, true, 40, true, true,
+            Map.copyOf(payoutMultipliers)
         );
     }
 
@@ -144,7 +160,8 @@ public record TradeEverythingConfig(
     private static TradeEverythingConfig fromJson(JsonObject root, TradeEverythingConfig defaults) {
         Map<String, Integer> rarity = intMap(root, "rarity_values_sixteenths", defaults.rarityValuesSixteenths());
         Map<String, Integer> overrides = intMap(root, "item_overrides_sixteenths", defaults.itemOverridesSixteenths());
-        double multiplier = clamp(number(root, "result_multiplier", defaults.resultMultiplier()), 0.01, 100.0);
+        double multiplier = clamp(number(root, "result_multiplier", defaults.resultMultiplier()),
+            MIN_MULTIPLIER, MAX_MULTIPLIER);
         int maxCost = (int) clamp(number(root, "max_cost_count", defaults.maxCostCount()), 1, 64);
         int maxResult = (int) clamp(number(root, "max_result_count", defaults.maxResultCount()), 1, 64);
         boolean undervalued = bool(root, "allow_undervalued_trades", defaults.allowUndervaluedTrades());
@@ -157,9 +174,11 @@ public record TradeEverythingConfig(
             defaults.placeholderIconIntervalTicks()), 1, 200);
         boolean previewHeld = bool(root, "preview_held_item", defaults.previewHeldItem());
         boolean singleItem = bool(root, "prefer_single_item_trades", defaults.preferSingleItemTrades());
+        Map<String, Double> payoutMultipliers =
+            doubleMap(root, "payout_multipliers", defaults.payoutMultipliers());
         return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult,
             undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks, previewHeld,
-            singleItem);
+            singleItem, payoutMultipliers);
     }
 
     /**
@@ -182,6 +201,31 @@ public record TradeEverythingConfig(
                 }
             } catch (RuntimeException ex) {
                 LOGGER.warn("[TradeEverything] {}.{} is not an integer — dropped", key, e.getKey());
+            }
+        }
+        return Map.copyOf(out);
+    }
+
+    /**
+     * As {@link #intMap}, for the fractional {@code payout_multipliers} map: user
+     * entries merge over the shipped defaults, non-numeric or non-positive entries
+     * are dropped with a warning, and the rest are clamped to the same bounds
+     * {@code result_multiplier} uses.
+     */
+    private static Map<String, Double> doubleMap(JsonObject root, String key, Map<String, Double> fallback) {
+        JsonElement el = root.get(key);
+        if (el == null || !el.isJsonObject()) return fallback;
+        Map<String, Double> out = new LinkedHashMap<>(fallback);
+        for (Map.Entry<String, JsonElement> e : el.getAsJsonObject().entrySet()) {
+            try {
+                double v = e.getValue().getAsDouble();
+                if (v > 0.0) {
+                    out.put(e.getKey(), clamp(v, MIN_MULTIPLIER, MAX_MULTIPLIER));
+                } else {
+                    LOGGER.warn("[TradeEverything] {}.{} must be > 0 — dropped", key, e.getKey());
+                }
+            } catch (RuntimeException ex) {
+                LOGGER.warn("[TradeEverything] {}.{} is not a number — dropped", key, e.getKey());
             }
         }
         return Map.copyOf(out);
@@ -216,6 +260,7 @@ public record TradeEverythingConfig(
         root.addProperty("placeholder_icon_interval_ticks", config.placeholderIconIntervalTicks());
         root.addProperty("preview_held_item", config.previewHeldItem());
         root.addProperty("prefer_single_item_trades", config.preferSingleItemTrades());
+        root.add("payout_multipliers", toJsonDoubleMap(config.payoutMultipliers()));
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);
@@ -225,6 +270,13 @@ public record TradeEverythingConfig(
     }
 
     private static JsonObject toJsonMap(Map<String, Integer> map) {
+        JsonObject obj = new JsonObject();
+        map.forEach(obj::addProperty);
+        return obj;
+    }
+
+    /** Erasure-distinct sibling of {@link #toJsonMap} — the two can't be overloads. */
+    private static JsonObject toJsonDoubleMap(Map<String, Double> map) {
         JsonObject obj = new JsonObject();
         map.forEach(obj::addProperty);
         return obj;

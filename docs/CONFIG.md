@@ -38,6 +38,20 @@ The per-item lever is the **override**: an entry in `item_overrides_sixteenths` 
 
 Full resolution order for any item: **item override → recipe-derived value (if the flag is on) → rarity default.** Items with no crafting recipe (raw drops, spawn eggs, etc.) fall through to rarity regardless of the flag.
 
+## Premium payout currencies
+
+`payout_multipliers` scales what a trade is worth **based on what the villager pays you with**. It's a map of item ID → factor, applied on top of `result_multiplier`:
+
+```json
+"payout_multipliers": {
+  "minecraft:diamond": 0.5
+}
+```
+
+Shipped default: a villager paying out in **diamonds** gives you half the value of whatever you traded in — an item worth 4 emeralds (64 sixteenths) fetches half a diamond, i.e. one diamond per two of them. Set an entry to `1.0` to remove the penalty, or add your own `"modid:item": factor` line for any other payout currency. Items with no entry are unaffected.
+
+Note this only bites when the villager actually pays out in that item. The payout item is the first non-currency thing the villager buys, escalating to emeralds and then emerald blocks for expensive sales — so with vanilla professions the diamond default is a rule waiting for a pack or mod that pays out in diamonds, not something you'll hit day to day.
+
 ## Editing rules (important)
 
 - **Valid edits always apply.** If your JSON parses, your changes take effect.
@@ -60,4 +74,5 @@ Full resolution order for any item: **item override → recipe-derived value (if
 | `enchantment_value_per_level_sixteenths` | Added value per enchantment level. |
 | `cycle_placeholder_icon` | Cycle the empty Trade Anything slot's icon through obtainable items (default `true`; `false` shows a chest). |
 | `placeholder_icon_interval_ticks` | How long each icon is shown, in ticks (default `40` = 2 s, range 1–200). |
+| `payout_multipliers` | Per-payout-item value factor (see above). Default: `minecraft:diamond` at `0.5`. |
 | `preview_held_item` | While holding an item on the cursor, the Trade Anything row previews that trade and its price (default `true`). |
