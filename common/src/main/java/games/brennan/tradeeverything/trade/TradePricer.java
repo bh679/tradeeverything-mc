@@ -3,6 +3,8 @@ package games.brennan.tradeeverything.trade;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -45,14 +47,20 @@ public final class TradePricer {
      */
     public static Item payoutFor(ItemStack input, Item preferred, MerchantOffers offers, TradeEverythingConfig config) {
         if (input.isEmpty()) return preferred;
-        double singleValue = ItemValuation.valueSixteenths(input) * config.resultMultiplier();
+        // The payout margin is per-payout-item, so it is re-read every time the
+        // ladder considers a different one: deciding the ladder on a margin that
+        // quote() won't use is how a batch passes the affordability test below and
+        // then falls through to the undervalued fallback for a whole payout unit.
+        int rawValue = ItemValuation.valueSixteenths(input);
         if (preferred != Items.EMERALD
-            && overflowsStack(singleValue, preferred, payoutValueSixteenths(preferred, offers), config)) {
+            && overflowsStack(rawValue * effectiveMultiplier(preferred, config), preferred,
+                payoutValueSixteenths(preferred, offers), config)) {
             preferred = Items.EMERALD;
         }
         // Netherite armor exceeds even a stack of emeralds — escalate once more.
         if (preferred == Items.EMERALD
-            && overflowsStack(singleValue, Items.EMERALD, emeraldValue(), config)) {
+            && overflowsStack(rawValue * effectiveMultiplier(Items.EMERALD, config), Items.EMERALD,
+                emeraldValue(), config)) {
             preferred = Items.EMERALD_BLOCK;
         }
         // Mirror of the escalation: a payout unit that a FULL batch of the input
@@ -63,7 +71,8 @@ public final class TradePricer {
         // down to emeralds so that fallback can never overpay by more than one.
         if (preferred != Items.EMERALD) {
             int unit = payoutValueSixteenths(preferred, offers);
-            if (unit > emeraldValue() && maxBatchValue(input, singleValue, config) < unit) {
+            if (unit > emeraldValue()
+                && maxBatchValue(input, rawValue * effectiveMultiplier(preferred, config), config) < unit) {
                 preferred = Items.EMERALD;
             }
         }
@@ -73,6 +82,24 @@ public final class TradePricer {
     private static boolean overflowsStack(double singleValue, Item payout, int payoutValue, TradeEverythingConfig config) {
         int cap = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
         return singleValue > (double) payoutValue * cap;
+    }
+
+    /**
+     * The payout margin for one specific payout item: the global
+     * {@code result_multiplier} times that item's {@code payout_multipliers} entry.
+     * A premium currency pays out a fraction of face value — the shipped default
+     * halves whatever a diamond payout is bought with — so this is deliberately
+     * per-payout-item rather than global.
+     */
+    private static double effectiveMultiplier(Item payout, TradeEverythingConfig config) {
+        return config.resultMultiplier() * payoutMultiplier(payout, config);
+    }
+
+    /** That payout item's {@code payout_multipliers} entry, or 1.0 when it has none. */
+    public static double payoutMultiplier(Item payout, TradeEverythingConfig config) {
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(payout);
+        Double multiplier = config.payoutMultipliers().get(id.toString());
+        return multiplier != null ? multiplier : 1.0;
     }
 
     /** Discounted worth of the largest batch {@link #quote} may charge for. */
@@ -113,7 +140,7 @@ public final class TradePricer {
 
         int maxCost = Math.min(Math.min(64, input.getMaxStackSize()), config.maxCostCount());
         int maxResult = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
-        double multiplier = config.resultMultiplier();
+        double multiplier = effectiveMultiplier(payout, config);
 
         // Prefer the SMALLEST batch whose rounding loss is acceptable (1 anvil → 11
         // emeralds beats 5 anvils → 58), falling back to the least-lossy batch.
