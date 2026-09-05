@@ -159,9 +159,16 @@ public final class RecipeValues {
     /**
      * Fixed-point solve. A recipe prices once every ingredient resolves
      * (override → derived-so-far → rarity for uncraftable items); the item
-     * keeps min-over-recipes, floored at its rarity value. Values only ever
-     * decrease, so iteration terminates; unresolved cycles simply stay
-     * absent and fall back to rarity at lookup time.
+     * keeps min-over-recipes. Values only ever decrease, so iteration
+     * terminates; unresolved cycles simply stay absent and fall back to rarity
+     * at lookup time.
+     *
+     * <p>The result is deliberately NOT floored at the item's rarity value. A
+     * floor breaks the arbitrage-free property this table exists for: with
+     * planks and sticks both floored up to a COMMON item's value, one log
+     * crafted into 8 sticks was worth 8 logs. Sub-sixteenth precision
+     * ({@link ItemValuation#PRECISION}) is what leaves room under the floor —
+     * a stick prices at a quarter of a plank, a plank at a quarter of a log.</p>
      */
     private static Map<Item, Integer> solve(Map<Item, List<IndexedRecipe>> index) {
         Map<Item, Integer> values = new HashMap<>();
@@ -175,8 +182,7 @@ public final class RecipeValues {
                     if (cost >= 0) best = Math.min(best, cost / recipe.resultCount());
                 }
                 if (best == Long.MAX_VALUE) continue;
-                int floored = (int) Math.min(Integer.MAX_VALUE,
-                    Math.max(ItemValuation.rarityValue(new ItemStack(item)), best));
+                int floored = (int) Math.min(Integer.MAX_VALUE, Math.max(1, best));
                 Integer current = values.get(item);
                 if (current == null || floored < current) {
                     values.put(item, floored);
