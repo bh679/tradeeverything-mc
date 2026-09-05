@@ -51,10 +51,10 @@ public final class TradePricer {
         // ladder considers a different one: deciding the ladder on a margin that
         // quote() won't use is how a batch passes the affordability test below and
         // then falls through to the undervalued fallback for a whole payout unit.
-        int rawValue = ItemValuation.valueSixteenths(input);
+        int rawValue = ItemValuation.valueUnits(input);
         if (preferred != Items.EMERALD
             && overflowsStack(rawValue * effectiveMultiplier(preferred, config), preferred,
-                payoutValueSixteenths(preferred, offers), config)) {
+                payoutValueUnits(preferred, offers), config)) {
             preferred = Items.EMERALD;
         }
         // Netherite armor exceeds even a stack of emeralds — escalate once more.
@@ -70,7 +70,7 @@ public final class TradePricer {
         // printer at 144-sixteenth emerald blocks (64 wheat → 9 emeralds). Step
         // down to emeralds so that fallback can never overpay by more than one.
         if (preferred != Items.EMERALD) {
-            int unit = payoutValueSixteenths(preferred, offers);
+            int unit = payoutValueUnits(preferred, offers);
             if (unit > emeraldValue()
                 && maxBatchValue(input, rawValue * effectiveMultiplier(preferred, config), config) < unit) {
                 preferred = Items.EMERALD;
@@ -108,19 +108,26 @@ public final class TradePricer {
     }
 
     private static int emeraldValue() {
-        return ItemValuation.valueSixteenths(new ItemStack(Items.EMERALD));
+        return ItemValuation.valueUnits(new ItemStack(Items.EMERALD));
     }
 
     /**
-     * Value of one payout item, preferring the villager's OWN exchange rate:
-     * if the villager buys "N × item → M emeralds", one item is worth 16·M/N
-     * sixteenths <em>to this villager</em>. Without this, a payout priced off
-     * the global table can be worth half (or double) what the same villager
-     * pays for it one row down — which reads as the slot short-changing the
-     * player. Falls back to the global valuation when the villager doesn't
-     * trade the item.
+     * Value of one payout item: the villager's OWN exchange rate when that is
+     * the <b>dearer</b> of the two, else the global valuation. If the villager
+     * buys "N × item → M emeralds", one item is worth 16·M/N sixteenths to this
+     * villager, and honouring a rate above the table keeps payouts consistent
+     * with the villager's own visible rows rather than reading as
+     * short-changing.
+     *
+     * <p>A rate <em>below</em> the table must never be used, because it prices
+     * only one leg of the exchange: the item handed over is stamped cheap while
+     * {@link #quote} values the same item at the global table when it comes back
+     * in, so the difference is a free printer. A leatherworker buying 6 leather
+     * for an emerald stamped leather at 2 against a table value of 4 — 8 rabbit
+     * hides bought 3 leather, and those 3 leather sold back for 9 hides.</p>
      */
-    public static int payoutValueSixteenths(Item payout, MerchantOffers offers) {
+    public static int payoutValueUnits(Item payout, MerchantOffers offers) {
+        int global = ItemValuation.valueUnits(new ItemStack(payout));
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             if (!offer.getResult().is(Items.EMERALD)) continue;
@@ -128,13 +135,13 @@ public final class TradePricer {
             if (offer.getItemCostA().item().value() != payout) continue;
             int n = offer.getItemCostA().count();
             int m = offer.getResult().getCount();
-            if (n > 0 && m > 0) return Math.max(1, m * 16 / n);
+            if (n > 0 && m > 0) return Math.max(global, m * 16 * ItemValuation.PRECISION / n);
         }
-        return ItemValuation.valueSixteenths(new ItemStack(payout));
+        return global;
     }
 
     public static Optional<Quote> quote(ItemStack input, Item payout, int payoutValue, TradeEverythingConfig config) {
-        int valueIn = ItemValuation.valueSixteenths(input);
+        int valueIn = ItemValuation.valueUnits(input);
         int valueOut = payoutValue;
         if (valueIn <= 0 || valueOut <= 0) return Optional.empty();
 

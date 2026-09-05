@@ -21,12 +21,24 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Value engine. Resolution order for a stack's value (in sixteenths of an
- * emerald): registered {@link ItemValueProvider}s → runtime API overrides →
- * config {@code item_overrides_sixteenths} → config rarity map via
+ * Value engine. Resolution order for a stack's value: registered
+ * {@link ItemValueProvider}s → runtime API overrides → config
+ * {@code item_overrides_sixteenths} → config rarity map via
  * {@link ItemStack#getRarity()}.
+ *
+ * <p>Internally values are carried in <b>units of 1/{@value #PRECISION} of a
+ * sixteenth</b> — 1/256 emerald — while every configured and API-supplied
+ * number stays in sixteenths and is scaled on the way in. Whole sixteenths
+ * were too coarse to price a craft chain: a stick derives to a quarter of a
+ * plank, which derives to a quarter of a log, and both rounded up to the same
+ * 1 sixteenth, so a log crafted into 8 sticks was worth 8× the log it came
+ * from. Every valuation is compared against others in the same unit, so only
+ * the config and API boundaries convert.</p>
  */
 public final class ItemValuation {
+
+    /** Internal value units per configured sixteenth — the fixed-point precision. */
+    public static final int PRECISION = 16;
 
     private static final List<ItemValueProvider> PROVIDERS = new CopyOnWriteArrayList<>();
     private static final List<BuyItemSelector> BUY_ITEM_SELECTORS = new CopyOnWriteArrayList<>();
@@ -37,7 +49,8 @@ public final class ItemValuation {
 
     private ItemValuation() {}
 
-    public static int valueSixteenths(ItemStack stack) {
+    /** The stack's value in internal units (see {@link #PRECISION}). */
+    public static int valueUnits(ItemStack stack) {
         if (stack.isEmpty()) return 0;
         for (ItemValueProvider provider : PROVIDERS) {
             // A throwing external provider must degrade to default valuation,
@@ -45,7 +58,8 @@ public final class ItemValuation {
             // throw wedges villagers in a phantom trading session).
             try {
                 OptionalInt value = provider.value(stack);
-                if (value.isPresent()) return Math.max(1, value.getAsInt());
+                // The provider contract is sixteenths — scale it like config.
+                if (value.isPresent()) return Math.max(1, value.getAsInt() * PRECISION);
             } catch (Throwable t) {
                 warnOnce(provider, "value provider", t);
             }
@@ -53,15 +67,27 @@ public final class ItemValuation {
         return Math.max(1, adjustForStack(baseValue(stack), stack));
     }
 
+    /** The stack's value in sixteenths of an emerald — the unit the API speaks. */
+    public static int valueSixteenths(ItemStack stack) {
+        if (stack.isEmpty()) return 0;
+        return Math.max(1, Math.round(valueUnits(stack) / (float) PRECISION));
+    }
+
+    /**
+     * Overrides win outright; otherwise a craftable item is worth its cheapest
+     * recipe and everything else its rarity value. The derived value is
+     * deliberately NOT floored at rarity — flooring it is what let an item cost
+     * as much as the material it is crafted from, so crafting up multiplied
+     * value (see {@link RecipeValues}).
+     */
     private static int baseValue(ItemStack stack) {
         OptionalInt override = overrideValue(stack);
         if (override.isPresent()) return override.getAsInt();
-        int rarity = rarityValue(stack);
         if (TradeEverythingConfig.get().deriveValuesFromRecipes()) {
             OptionalInt derived = RecipeValues.derivedValue(stack.getItem());
-            if (derived.isPresent()) return Math.max(rarity, derived.getAsInt());
+            if (derived.isPresent()) return derived.getAsInt();
         }
-        return rarity;
+        return rarityValue(stack);
     }
 
     /**
@@ -91,7 +117,7 @@ public final class ItemValuation {
         if (perLevel <= 0) return 0;
         int levels = totalLevels(stack.get(DataComponents.ENCHANTMENTS))
             + totalLevels(stack.get(DataComponents.STORED_ENCHANTMENTS));
-        return levels * perLevel;
+        return levels * perLevel * PRECISION;
     }
 
     /**
@@ -109,19 +135,22 @@ public final class ItemValuation {
         return sum;
     }
 
-    /** Runtime API override, else config override. Package-visible for RecipeValues. */
+    /**
+     * Runtime API override, else config override, in internal units — both maps
+     * are configured in sixteenths. Package-visible for RecipeValues.
+     */
     static OptionalInt overrideValue(ItemStack stack) {
         ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         Integer runtime = RUNTIME_OVERRIDES.get(id);
-        if (runtime != null) return OptionalInt.of(runtime);
+        if (runtime != null) return OptionalInt.of(runtime * PRECISION);
         Integer override = TradeEverythingConfig.get().itemOverridesSixteenths().get(id.toString());
-        return override != null ? OptionalInt.of(override) : OptionalInt.empty();
+        return override != null ? OptionalInt.of(override * PRECISION) : OptionalInt.empty();
     }
 
-    /** Config rarity-tier value for the stack. Package-visible for RecipeValues. */
+    /** Config rarity-tier value for the stack, in internal units. Package-visible for RecipeValues. */
     static int rarityValue(ItemStack stack) {
         String rarity = stack.getRarity().name().toLowerCase(Locale.ROOT);
-        return Math.max(1, TradeEverythingConfig.get().rarityValuesSixteenths().getOrDefault(rarity, 1));
+        return Math.max(1, TradeEverythingConfig.get().rarityValuesSixteenths().getOrDefault(rarity, 1)) * PRECISION;
     }
 
     /** Payout item for the villager: API selectors first, then the built-in default. */

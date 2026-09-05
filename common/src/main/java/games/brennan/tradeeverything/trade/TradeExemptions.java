@@ -14,8 +14,8 @@ import net.minecraft.world.item.trading.MerchantOffers;
  * back its own goods would let gossip/hero discounts turn its sell-side
  * prices into an emerald printer (buy discounted axe → sell axe for coal →
  * coal → emerald → repeat) — and worthless junk (snowballs) that the value
- * system can't price at true zero, since every value is floored at 1/16
- * emerald ({@link ItemValuation#valueSixteenths}).
+ * system can't price at true zero, since every value is floored at one
+ * internal unit ({@link ItemValuation#valueUnits}).
  */
 public final class TradeExemptions {
 

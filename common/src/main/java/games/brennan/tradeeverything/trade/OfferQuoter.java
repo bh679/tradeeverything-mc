@@ -29,7 +29,7 @@ public final class OfferQuoter {
         TradeEverythingConfig config = TradeEverythingConfig.get();
         Item preferred = ItemValuation.selectBuyItem(villager, offers);
         Item payout = TradePricer.payoutFor(input, preferred, offers, config);
-        int payoutValue = TradePricer.payoutValueSixteenths(payout, offers);
+        int payoutValue = TradePricer.payoutValueUnits(payout, offers);
         // The villager's own stock buys back at 10% under its live price.
         Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers);
         if (buyback.isPresent()) return buyback;
