@@ -57,12 +57,37 @@ public final class SyntheticOfferFactory {
     }
 
     /**
-     * Priced offer: exactly the inserted stack (item + full components, so
-     * enchanted/damaged variants only match themselves) × n, for m × payout.
+     * Priced offer: exactly the inserted stack (item + its component patch, so
+     * enchanted/damaged/renamed variants only match themselves) × n, for m × payout.
      */
     public static MerchantOffer priced(ItemStack input, int costCount, Item payout, int resultCount) {
-        ItemCost cost = new ItemCost(input.getItemHolder(), costCount, DataComponentPredicate.allOf(input.getComponents()));
+        ItemCost cost = new ItemCost(input.getItemHolder(), costCount, stackPredicate(input));
         return mark(new MerchantOffer(cost, Optional.empty(), new ItemStack(payout, resultCount), 0, MAX_USES, 0, 0.0f));
+    }
+
+    /**
+     * The cost predicate for a quoted stack: every component the stack ADDS or
+     * OVERRIDES on top of its item's defaults, and nothing from the defaults.
+     *
+     * <p>Default (prototype) components are shared by every stack of the item,
+     * so expecting them never told two stacks apart — but they DO break the
+     * client. {@code ItemCost}'s predicate is synced to the client and decoded
+     * into fresh objects, and a vanilla {@code FoodProperties} with status
+     * effects ({@code PossibleEffect} wraps its effect in a {@code Supplier}
+     * lambda, so the record's generated {@code equals} is identity) never
+     * compares equal to the client's own prototype. The client then failed
+     * {@code MerchantContainer.updateSellItem} for rotten flesh, spider eyes,
+     * golden apples, poisonous potatoes, pufferfish… and blanked the result
+     * slot while the server, comparing the prototype against itself, still
+     * completed the trade. Patch components (enchantments, damage, names,
+     * potion contents…) all carry value-based equality and round-trip cleanly.</p>
+     *
+     * <p>A patch that <em>removes</em> a default component cannot be expressed
+     * by a predicate (it can only expect presence), exactly as before: the old
+     * full-map predicate simply lacked the entry too.</p>
+     */
+    static DataComponentPredicate stackPredicate(ItemStack stack) {
+        return DataComponentPredicate.allOf(stack.getComponentsPatch().split().added());
     }
 
     /**
