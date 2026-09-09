@@ -1,32 +1,53 @@
 package games.brennan.tradeeverything.mixin;
 
+import games.brennan.tradeeverything.TradeEverything;
+import games.brennan.tradeeverything.trade.OfferQuoter;
+import games.brennan.tradeeverything.trade.OfferResync;
+import games.brennan.tradeeverything.trade.RepriceSuppression;
+import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import games.brennan.tradeeverything.trade.RepriceSuppression;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.Optional;
+
 /**
- * Emerald blocks as big currency, broken only at purchase time.
+ * Two server-side jobs around {@code MerchantMenu.tryMoveItems} — the method
+ * that runs when the player clicks a trade row (vanilla ejects the payment
+ * slots, then auto-fills them from the inventory against the row's cost).
  *
- * <p>{@code tryMoveItems} runs server-side when the player clicks a trade
- * row (vanilla then auto-fills the payment slots from the inventory). Before
- * that fill: if the clicked offer is emerald-priced and the player's loose
- * emeralds don't cover it, break the minimum number of emerald blocks in the
- * player's inventory into emeralds. Vanilla's auto-fill then moves exactly
- * what the trade needs; the rest stays in the inventory as change and
- * untouched blocks stay blocks.</p>
+ * <ul>
+ *   <li><b>Click-to-fill the Trade Anything row.</b> While its slot is empty the
+ *       row previews an item the player is carrying ({@code PlaceholderIconCycle}),
+ *       but its cost is the unmatchable named-barrier placeholder, so vanilla's
+ *       fill finds nothing. Swap offer 0 to the real quote for that item before
+ *       the fill runs; the quote's predicate matches the player's own stack and
+ *       vanilla moves it into the slot exactly as it would for a real row.</li>
+ *   <li><b>Emerald blocks as big currency</b>, broken only at purchase time: if
+ *       the clicked offer is emerald-priced and the player's loose emeralds don't
+ *       cover it, break the minimum number of emerald blocks first. Vanilla's
+ *       fill then moves exactly what the trade needs; the rest stays in the
+ *       inventory as change and untouched blocks stay blocks.</li>
+ * </ul>
  */
 @Mixin(MerchantMenu.class)
 public abstract class MerchantMenuMixin {
+
+    /** Set while a click-fill swapped offer 0, so the RETURN hook knows to resync. */
+    @Unique
+    private boolean tradeeverything$filledFromPreview;
 
     /**
      * Clicking the Trade Anything row (index 0) has vanilla eject the payment
@@ -34,6 +55,8 @@ public abstract class MerchantMenuMixin {
      * slot, repricing resets offer 0 to the unmatchable placeholder, and the
      * refill dead-ends — the row spat the payment out. Suppress repricing for
      * the whole tryMoveItems pass so the priced offer survives the round trip.
+     * Then, if the row is still a placeholder, price the previewed item so the
+     * fill has something to match.
      */
     @Inject(method = "tryMoveItems", at = @At("HEAD"))
     private void tradeeverything$suppressBegin(int selectedIndex, CallbackInfo ci) {
@@ -42,13 +65,52 @@ public abstract class MerchantMenuMixin {
         if (!(accessor.tradeeverything$getTrader() instanceof AbstractVillager villager)) return;
         if (villager.level().isClientSide()) return;
         MerchantOffers offers = villager.getOffers();
-        if (offers.isEmpty() || !games.brennan.tradeeverything.trade.SyntheticOfferFactory.isSynthetic(offers.get(0))) return;
+        if (offers.isEmpty() || !SyntheticOfferFactory.isSynthetic(offers.get(0))) return;
         RepriceSuppression.begin();
+        try {
+            tradeeverything$fillFromPreview(villager, offers);
+        } catch (Throwable t) {
+            // Never propagate into the select-trade packet handler.
+            TradeEverything.LOGGER.warn("[TradeEverything] click-to-fill failed; row left as-is", t);
+        }
     }
 
     @Inject(method = "tryMoveItems", at = @At("RETURN"))
     private void tradeeverything$suppressEnd(int selectedIndex, CallbackInfo ci) {
         RepriceSuppression.end();
+        if (!tradeeverything$filledFromPreview) return;
+        tradeeverything$filledFromPreview = false;
+        MerchantMenuAccessor accessor = (MerchantMenuAccessor) this;
+        if (accessor.tradeeverything$getTrader() instanceof AbstractVillager villager) {
+            OfferResync.send(villager);
+        }
+    }
+
+    /**
+     * Offer 0 is a placeholder showing {@code icon}: if the player carries that
+     * item, quote their stack (the first one in inventory order — the same stack
+     * {@code InventoryIconPool} previewed) and install the quote as offer 0.
+     * A registry-fallback icon the player doesn't carry, an exempt item, or the
+     * flat chest placeholder leaves the row untouched and vanilla finds nothing,
+     * exactly as before.
+     */
+    @Unique
+    private void tradeeverything$fillFromPreview(AbstractVillager villager, MerchantOffers offers) {
+        MerchantOffer current = offers.get(0);
+        if (!SyntheticOfferFactory.isPlaceholder(current)) return;
+        if (!(villager.getTradingPlayer() instanceof ServerPlayer player)) return;
+
+        Item icon = current.getItemCostA().item().value();
+        Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty() || !stack.is(icon)) continue;
+            Optional<MerchantOffer> quote = OfferQuoter.quote(villager, stack, offers);
+            if (quote.isEmpty()) return;
+            offers.set(0, quote.get());
+            tradeeverything$filledFromPreview = true;
+            return;
+        }
     }
 
     @Inject(method = "tryMoveItems", at = @At("HEAD"))
