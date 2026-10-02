@@ -30,11 +30,23 @@ public final class OfferQuoter {
         Item preferred = ItemValuation.selectBuyItem(villager, offers);
         Item payout = TradePricer.payoutFor(input, preferred, offers, config);
         int payoutValue = TradePricer.payoutValueUnits(payout, offers);
-        // The villager's own stock buys back at 10% under its live price.
-        Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers);
-        if (buyback.isPresent()) return buyback;
-        return TradePricer.quote(input, payout, payoutValue, config)
+        Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config)
             .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()));
+        // The villager's own stock buys back at 10% under its live price — a
+        // ceiling, not the price: an item valued below that sells for its value.
+        Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers);
+        if (buyback.isEmpty()) return valued;
+        if (valued.isEmpty()) return buyback;
+        return paysLess(valued.get(), payoutValue, buyback.get(), offers) ? valued : buyback;
+    }
+
+    /** Whether the valuation quote pays less per input item than the buy-back. */
+    private static boolean paysLess(MerchantOffer valued, int valuedUnitValue,
+                                    MerchantOffer buyback, MerchantOffers offers) {
+        int buybackUnitValue = TradePricer.payoutValueUnits(buyback.getResult().getItem(), offers);
+        return PayoutComparison.paysLess(
+            valued.getItemCostA().count(), valued.getResult().getCount(), valuedUnitValue,
+            buyback.getItemCostA().count(), buyback.getResult().getCount(), buybackUnitValue);
     }
 
     /**

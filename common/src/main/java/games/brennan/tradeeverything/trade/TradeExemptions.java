@@ -32,9 +32,10 @@ public final class TradeExemptions {
             if (offer.getItemCostA().item().value() == item) return true;
             if (offer.getItemCostB().isPresent() && offer.getItemCostB().get().item().value() == item) return true;
         }
-        // The villager's own stock is NOT exempt — it's bought back at a 10%
-        // margin under its live sell price (see BuybackPricer), which keeps
-        // discount round-trips unprofitable while letting players return goods.
+        // The villager's own stock is NOT exempt — it's bought back at its value,
+        // capped at a 10% margin under its live sell price (see BuybackPricer),
+        // which keeps discount round-trips unprofitable while letting players
+        // return goods.
         return false;
     }
 }

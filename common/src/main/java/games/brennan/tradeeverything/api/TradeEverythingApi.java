@@ -24,6 +24,15 @@ public final class TradeEverythingApi {
         ItemValuation.setRuntimeOverride(itemId, sixteenths);
     }
 
+    /**
+     * As {@link #setItemOverride}, in 256ths of an emerald — a sixteenth of the
+     * sixteenths every other number here uses — for a value that falls between
+     * two whole sixteenths (88 = 5.5 sixteenths). Zero or less clears it.
+     */
+    public static void setItemOverride256ths(ResourceLocation itemId, int emerald256ths) {
+        ItemValuation.setRuntimeOverrideUnits(itemId, emerald256ths);
+    }
+
     /** Registers a valuation hook consulted ahead of all overrides. */
     public static void registerValueProvider(ItemValueProvider provider) {
         ItemValuation.registerProvider(provider);
