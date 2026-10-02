@@ -136,13 +136,14 @@ public final class ItemValuation {
     }
 
     /**
-     * Runtime API override, else config override, in internal units — both maps
-     * are configured in sixteenths. Package-visible for RecipeValues.
+     * Runtime API override, else config override, in internal units — runtime
+     * overrides are stored in units, the config map in sixteenths.
+     * Package-visible for RecipeValues.
      */
     static OptionalInt overrideValue(ItemStack stack) {
         ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         Integer runtime = RUNTIME_OVERRIDES.get(id);
-        if (runtime != null) return OptionalInt.of(runtime * PRECISION);
+        if (runtime != null) return OptionalInt.of(runtime);
         Integer override = TradeEverythingConfig.get().itemOverridesSixteenths().get(id.toString());
         return override != null ? OptionalInt.of(override * PRECISION) : OptionalInt.empty();
     }
@@ -183,8 +184,13 @@ public final class ItemValuation {
     }
 
     public static void setRuntimeOverride(ResourceLocation itemId, int sixteenths) {
-        if (sixteenths > 0) {
-            RUNTIME_OVERRIDES.put(itemId, sixteenths);
+        setRuntimeOverrideUnits(itemId, sixteenths > 0 ? sixteenths * PRECISION : 0);
+    }
+
+    /** As {@link #setRuntimeOverride}, in internal units (see {@link #PRECISION}) — for values between sixteenths. */
+    public static void setRuntimeOverrideUnits(ResourceLocation itemId, int units) {
+        if (units > 0) {
+            RUNTIME_OVERRIDES.put(itemId, units);
         } else {
             RUNTIME_OVERRIDES.remove(itemId);
         }
