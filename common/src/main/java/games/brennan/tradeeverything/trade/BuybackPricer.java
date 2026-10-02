@@ -13,6 +13,10 @@ import java.util.Optional;
  * discounted {@code getCostA()} — not the base cost — means the buy-back is
  * always at or below what the player just paid, so gossip/hero/cured
  * discounts can never turn sell→buy-back into a money loop.
+ *
+ * <p>This is a ceiling, not the price: {@link OfferQuoter} takes whichever of
+ * this and the item's valuation quote pays less, so stock valued below its
+ * sell price (a librarian's 9-emerald bookshelf) sells for its value.</p>
  */
 public final class BuybackPricer {
 
