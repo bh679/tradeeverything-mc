@@ -2,8 +2,6 @@ package games.brennan.tradeeverything.mixin.client;
 
 import games.brennan.tradeeverything.TradeEverything;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -16,39 +14,44 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.OptionalInt;
 
 /**
- * A small red "X%" under the Trade Anything row's arrow when the villager has
- * tired of the item and pays only that share of its full price. Hooked on
- * {@code renderButtonArrows}, which vanilla calls once per visible row with that
- * row's offer and position.
+ * Up to three small red bars between the Trade Anything row's cost and its arrow
+ * when the villager has tired of the item: one (shorter) once the price has
+ * dropped at all, two once it is down by more than a quarter, three below half.
+ * Hooked on {@code renderButtonArrows}, which vanilla calls once per visible row
+ * with that row's offer and position.
  *
  * <p>CLIENT ONLY — listed under {@code "client"} in the mixin config.</p>
  */
 @Mixin(MerchantScreen.class)
 public abstract class MerchantScreenDemandMixin {
 
-    /** Vanilla's arrow sprite: x offset from the screen's left, its width, and its y offset in the row. */
-    @Unique private static final int ARROW_X = 5 + 35 + 20;
-    @Unique private static final int ARROW_WIDTH = 10;
-    @Unique private static final int ARROW_BOTTOM = 3 + 9;
-    @Unique private static final float SCALE = 0.5f;
+    /** First bar's x offset from the screen's left — just right of the cost item (x 10–26). */
+    @Unique private static final int FIRST_BAR_X = 32;
+    @Unique private static final int BAR_SPACING = 4;
+    @Unique private static final int BAR_WIDTH = 1;
+    /** Bar spans, as y offsets in the 16-pixel row: the first bar is the shorter one. */
+    @Unique private static final int SHORT_TOP = 5;
+    @Unique private static final int TALL_TOP = 4;
+    @Unique private static final int BAR_BOTTOM = 14;
+    /** Percent of full price below which the second and third bars show. */
+    @Unique private static final int SECOND_BAR_BELOW = 75;
+    @Unique private static final int THIRD_BAR_BELOW = 50;
     @Unique private static final int RED = 0xFFFF5555;
 
     @Inject(method = "renderButtonArrows", at = @At("TAIL"))
-    private void tradeeverything$drawDemandPercent(GuiGraphics graphics, MerchantOffer offer, int posX, int posY,
-                                                   CallbackInfo ci) {
+    private void tradeeverything$drawDemandBars(GuiGraphics graphics, MerchantOffer offer, int posX, int posY,
+                                                CallbackInfo ci) {
         try {
             OptionalInt percent = SyntheticOfferFactory.demandPercent(offer);
             if (percent.isEmpty()) return;
-            Font font = Minecraft.getInstance().font;
-            String label = percent.getAsInt() + "%";
-            float centreX = posX + ARROW_X + ARROW_WIDTH / 2.0f;
-            graphics.pose().pushPose();
-            graphics.pose().translate(centreX - font.width(label) * SCALE / 2.0f, posY + ARROW_BOTTOM, 0.0f);
-            graphics.pose().scale(SCALE, SCALE, 1.0f);
-            graphics.drawString(font, label, 0, 0, RED, false);
-            graphics.pose().popPose();
+            int bars = percent.getAsInt() < THIRD_BAR_BELOW ? 3 : percent.getAsInt() < SECOND_BAR_BELOW ? 2 : 1;
+            for (int bar = 0; bar < bars; bar++) {
+                int x = posX + FIRST_BAR_X + bar * BAR_SPACING;
+                int top = posY + (bar == 0 ? SHORT_TOP : TALL_TOP);
+                graphics.fill(x, top, x + BAR_WIDTH, posY + BAR_BOTTOM, RED);
+            }
         } catch (Throwable t) {
-            TradeEverything.LOGGER.warn("[TradeEverything] demand percent label failed", t);
+            TradeEverything.LOGGER.warn("[TradeEverything] demand bars failed", t);
         }
     }
 }
