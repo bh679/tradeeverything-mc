@@ -30,11 +30,13 @@ public final class OfferQuoter {
         Item preferred = ItemValuation.selectBuyItem(villager, offers);
         Item payout = TradePricer.payoutFor(input, preferred, offers, config);
         int payoutValue = TradePricer.payoutValueUnits(payout, offers);
-        Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config)
+        // A villager that has already bought plenty of this item pays less for more.
+        int demand = VillagerDemands.factorSixteenths(villager, input);
+        Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config, demand)
             .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()));
         // The villager's own stock buys back at 10% under its live price — a
         // ceiling, not the price: an item valued below that sells for its value.
-        Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers);
+        Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers, demand);
         if (buyback.isEmpty()) return valued;
         if (valued.isEmpty()) return buyback;
         return paysLess(valued.get(), payoutValue, buyback.get(), offers) ? valued : buyback;

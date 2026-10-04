@@ -141,7 +141,21 @@ public final class TradePricer {
     }
 
     public static Optional<Quote> quote(ItemStack input, Item payout, int payoutValue, TradeEverythingConfig config) {
-        int valueIn = ItemValuation.valueUnits(input);
+        return quote(input, payout, payoutValue, config, DemandCurve.FULL);
+    }
+
+    /**
+     * As {@link #quote(ItemStack, Item, int, TradeEverythingConfig)}, with the input
+     * valued at {@code demandSixteenths}/16 of its worth — the villager's price after
+     * it has bought plenty of this item ({@link VillagerDemands}). The payout ladder
+     * ({@link #payoutFor}) still reads the full value, so a tired villager pays in the
+     * same currency, just less of it.
+     */
+    public static Optional<Quote> quote(ItemStack input, Item payout, int payoutValue, TradeEverythingConfig config,
+                                        int demandSixteenths) {
+        int fullValue = ItemValuation.valueUnits(input);
+        int valueIn = fullValue <= 0 ? 0
+            : (int) Math.max(1L, (long) fullValue * demandSixteenths / DemandCurve.FULL);
         int valueOut = payoutValue;
         if (valueIn <= 0 || valueOut <= 0) return Optional.empty();
 

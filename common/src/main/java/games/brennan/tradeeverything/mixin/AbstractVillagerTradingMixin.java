@@ -3,7 +3,11 @@ package games.brennan.tradeeverything.mixin;
 import games.brennan.tradeeverything.TradeEverything;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import games.brennan.tradeeverything.trade.ItemValuation;
+import games.brennan.tradeeverything.trade.DemandLedger;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
+import games.brennan.tradeeverything.trade.VillagerDemand;
+import games.brennan.tradeeverything.trade.VillagerDemands;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.player.Player;
@@ -13,6 +17,7 @@ import net.minecraft.world.item.trading.MerchantOffers;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -40,15 +45,40 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       never contains the injected offer and the live list is never mutated
  *       during a save (throw-safe, autosave-mid-trade-safe).</li>
  *   <li>{@code notifyTrade} — reset uses so the slot never goes out of stock
- *       and never trips {@code needsToRestock()}.</li>
+ *       and never trips {@code needsToRestock()}, and record the sale in the
+ *       villager's demand ledger ({@link VillagerDemands}).</li>
+ *   <li>{@code addAdditionalSaveData} / {@code readAdditionalSaveData} —
+ *       persist that ledger under {@link VillagerDemands#NBT_KEY}.</li>
  * </ul>
  */
 @Mixin(AbstractVillager.class)
-public abstract class AbstractVillagerTradingMixin {
+public abstract class AbstractVillagerTradingMixin implements VillagerDemand {
 
     @Shadow
     @Nullable
     protected MerchantOffers offers;
+
+    @Unique
+    private DemandLedger tradeeverything$demandLedger = DemandLedger.EMPTY;
+
+    @Unique
+    private int tradeeverything$demandGeneration;
+
+    @Override
+    public DemandLedger tradeeverything$demandLedger() {
+        return tradeeverything$demandLedger;
+    }
+
+    @Override
+    public void tradeeverything$setDemandLedger(DemandLedger ledger) {
+        tradeeverything$demandLedger = ledger;
+        tradeeverything$demandGeneration++;
+    }
+
+    @Override
+    public int tradeeverything$demandGeneration() {
+        return tradeeverything$demandGeneration;
+    }
 
     @Inject(method = "setTradingPlayer", at = @At("TAIL"))
     private void tradeeverything$onSetTradingPlayer(@Nullable Player player, CallbackInfo ci) {
@@ -99,8 +129,34 @@ public abstract class AbstractVillagerTradingMixin {
 
     @Inject(method = "notifyTrade", at = @At("TAIL"))
     private void tradeeverything$afterTrade(MerchantOffer offer, CallbackInfo ci) {
-        if (SyntheticOfferFactory.isSynthetic(offer)) {
-            offer.resetUses();
+        if (!SyntheticOfferFactory.isSynthetic(offer)) return;
+        offer.resetUses();
+        try {
+            AbstractVillager self = (AbstractVillager) (Object) this;
+            if (!self.level().isClientSide() && !SyntheticOfferFactory.isPlaceholder(offer)) {
+                VillagerDemands.recordSale(self, offer);
+            }
+        } catch (Throwable t) {
+            // Never propagate into the result-slot take — the trade itself already happened.
+            TradeEverything.LOGGER.warn("[TradeEverything] demand record failed; sale not remembered", t);
+        }
+    }
+
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
+    private void tradeeverything$saveDemand(CompoundTag tag, CallbackInfo ci) {
+        try {
+            VillagerDemands.save((AbstractVillager) (Object) this, tag);
+        } catch (Throwable t) {
+            TradeEverything.LOGGER.warn("[TradeEverything] demand save failed; villager saved without it", t);
+        }
+    }
+
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
+    private void tradeeverything$loadDemand(CompoundTag tag, CallbackInfo ci) {
+        try {
+            VillagerDemands.load((AbstractVillager) (Object) this, tag);
+        } catch (Throwable t) {
+            TradeEverything.LOGGER.warn("[TradeEverything] demand load failed; villager starts fresh", t);
         }
     }
 }
