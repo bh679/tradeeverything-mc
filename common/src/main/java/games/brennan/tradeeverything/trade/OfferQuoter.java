@@ -25,16 +25,26 @@ public final class OfferQuoter {
      * traded (empty, exempt, or worth too little to price).
      */
     public static Optional<MerchantOffer> quote(AbstractVillager villager, ItemStack input, MerchantOffers offers) {
+        double demand = VillagerDemands.priceFraction(villager, input);
+        return quoteAtDemand(villager, input, offers, demand)
+            .map(offer -> SyntheticOfferFactory.withDemandPercent(offer, demand));
+    }
+
+    private static Optional<MerchantOffer> quoteAtDemand(AbstractVillager villager, ItemStack input,
+                                                               MerchantOffers offers, double demand) {
         if (input.isEmpty() || TradeExemptions.isExempt(input, offers)) return Optional.empty();
         TradeEverythingConfig config = TradeEverythingConfig.get();
         Item preferred = ItemValuation.selectBuyItem(villager, offers);
-        Item payout = TradePricer.payoutFor(input, preferred, offers, config);
+        // A villager that has already bought plenty of this item pays less for more —
+        // in a smaller currency once it can't afford one unit of the usual one.
+        Item payout = TradePricer.payoutForDemand(input,
+            TradePricer.payoutFor(input, preferred, offers, config), preferred, offers, config, demand);
         int payoutValue = TradePricer.payoutValueUnits(payout, offers);
-        Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config)
+        Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config, demand)
             .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()));
         // The villager's own stock buys back at 10% under its live price — a
         // ceiling, not the price: an item valued below that sells for its value.
-        Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers);
+        Optional<MerchantOffer> buyback = BuybackPricer.buybackOffer(input, offers, demand);
         if (buyback.isEmpty()) return valued;
         if (valued.isEmpty()) return buyback;
         return paysLess(valued.get(), payoutValue, buyback.get(), offers) ? valued : buyback;

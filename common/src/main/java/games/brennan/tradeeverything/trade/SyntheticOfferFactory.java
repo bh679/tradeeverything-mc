@@ -24,6 +24,14 @@ public final class SyntheticOfferFactory {
     private static final int MAX_USES = 999_999;
 
     /**
+     * Full price, in the percent {@link #demandPercent} carries. The percent rides in
+     * the offer's vanilla {@code demand} field — synced to the client by
+     * {@code MerchantOffer.STREAM_CODEC}, and inert here because {@code priceMultiplier}
+     * is 0, so vanilla's demand price adjustment always comes to nothing.
+     */
+    public static final int FULL_PRICE_PERCENT = 100;
+
+    /**
      * The placeholder's identity: a CUSTOM_NAME predicate holding the localized
      * "Trade Anything" label. The client renders the label with zero client-side
      * code, the cost stays unmatchable (an anvil rename produces a literal
@@ -102,7 +110,35 @@ public final class SyntheticOfferFactory {
     public static MerchantOffer pricedPlaceholder(MerchantOffer quote) {
         ItemCost quoted = quote.getItemCostA();
         ItemCost cost = new ItemCost(quoted.item(), quoted.count(), PLACEHOLDER_PREDICATE);
-        return mark(new MerchantOffer(cost, Optional.empty(), quote.getResult().copy(), 0, MAX_USES, 0, 0.0f));
+        return mark(new MerchantOffer(cost, Optional.empty(), quote.getResult().copy(), 0, MAX_USES, 0, 0.0f,
+            quote.getDemand()));
+    }
+
+    /**
+     * {@code offer} tagged with the share of full price a tired villager now pays
+     * ({@code VillagerDemands}), for the trade screen to show. Full price — and any
+     * offer that isn't ours — comes back unchanged.
+     */
+    public static MerchantOffer withDemandPercent(MerchantOffer offer, double priceFraction) {
+        if (!isSynthetic(offer)) return offer;
+        int percent = Math.max(1, Math.min(FULL_PRICE_PERCENT, (int) Math.floor(priceFraction * FULL_PRICE_PERCENT)));
+        if (percent >= FULL_PRICE_PERCENT) return offer;
+        return mark(new MerchantOffer(offer.getItemCostA(), offer.getItemCostB(), offer.getResult().copy(),
+            0, MAX_USES, 0, 0.0f, percent));
+    }
+
+    /**
+     * The share of full price the Trade Anything row pays, 1–99, or empty at full
+     * price. Works client-side: the row is told apart from vanilla trades by its
+     * synced shape (unlimited uses, no XP, no price multiplier), since the
+     * {@link SyntheticOffer} flag never leaves the server.
+     */
+    public static java.util.OptionalInt demandPercent(MerchantOffer offer) {
+        boolean ours = offer.getMaxUses() == MAX_USES && offer.getXp() == 0 && offer.getPriceMultiplier() == 0.0f;
+        int percent = offer.getDemand();
+        return ours && percent >= 1 && percent < FULL_PRICE_PERCENT
+            ? java.util.OptionalInt.of(percent)
+            : java.util.OptionalInt.empty();
     }
 
     public static boolean isSynthetic(MerchantOffer offer) {

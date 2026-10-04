@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import games.brennan.tradeeverything.ConfigDir;
+import games.brennan.tradeeverything.trade.DemandCurve;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +28,9 @@ import java.util.Map;
  * <p>{@code payout_multipliers} is the one fractional map: a per-payout-item
  * factor on top of {@link #resultMultiplier()}, so a premium currency can hand
  * over a fraction of face value.</p>
+ *
+ * <p>The {@code demand_*} keys shape {@link DemandCurve}: how far a villager's
+ * price for one item slides as it buys more of it, and how fast it recovers.</p>
  */
 public record TradeEverythingConfig(
     Map<String, Integer> rarityValuesSixteenths,
@@ -42,7 +46,8 @@ public record TradeEverythingConfig(
     int placeholderIconIntervalTicks,
     boolean previewHeldItem,
     boolean preferSingleItemTrades,
-    Map<String, Double> payoutMultipliers
+    Map<String, Double> payoutMultipliers,
+    DemandCurve demand
 ) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("TradeEverything");
@@ -137,7 +142,8 @@ public record TradeEverythingConfig(
         return new TradeEverythingConfig(
             Map.copyOf(rarity), Map.copyOf(overrides),
             0.75, 64, 64, true, true, true, 16, true, 40, true, true,
-            Map.copyOf(payoutMultipliers)
+            Map.copyOf(payoutMultipliers),
+            DemandCurve.defaults()
         );
     }
 
@@ -178,7 +184,20 @@ public record TradeEverythingConfig(
             doubleMap(root, "payout_multipliers", defaults.payoutMultipliers());
         return new TradeEverythingConfig(rarity, overrides, multiplier, maxCost, maxResult,
             undervalued, wandering, recipes, enchantPerLevel, cycleIcon, cycleTicks, previewHeld,
-            singleItem, payoutMultipliers);
+            singleItem, payoutMultipliers, demandCurve(root, defaults.demand()));
+    }
+
+    /** The {@code demand_*} keys, each clamped to a range that keeps the curve sane. */
+    private static DemandCurve demandCurve(JsonObject root, DemandCurve d) {
+        return new DemandCurve(
+            bool(root, "demand_saturation_enabled", d.enabled()),
+            clamp(number(root, "demand_free_emeralds", d.freeEmeralds()), 0.0, 100_000.0),
+            clamp(number(root, "demand_step_emeralds", d.stepEmeralds()), 0.01, 100_000.0),
+            clamp(number(root, "demand_step_exponent", d.stepExponent()), 0.0, 1.0),
+            clamp(number(root, "demand_step_multiplier", d.stepMultiplier()), 0.0, 1.0),
+            clamp(number(root, "demand_min_fraction", d.minFraction()), 0.0, 1.0),
+            clamp(number(root, "demand_min_emeralds", d.minEmeralds()), 0.0, 100_000.0),
+            clamp(number(root, "demand_recovery_steps_per_day", d.recoveryStepsPerDay()), 0.0, 10_000.0));
     }
 
     /**
@@ -261,6 +280,15 @@ public record TradeEverythingConfig(
         root.addProperty("preview_held_item", config.previewHeldItem());
         root.addProperty("prefer_single_item_trades", config.preferSingleItemTrades());
         root.add("payout_multipliers", toJsonDoubleMap(config.payoutMultipliers()));
+        DemandCurve demand = config.demand();
+        root.addProperty("demand_saturation_enabled", demand.enabled());
+        root.addProperty("demand_free_emeralds", demand.freeEmeralds());
+        root.addProperty("demand_step_emeralds", demand.stepEmeralds());
+        root.addProperty("demand_step_exponent", demand.stepExponent());
+        root.addProperty("demand_step_multiplier", demand.stepMultiplier());
+        root.addProperty("demand_min_fraction", demand.minFraction());
+        root.addProperty("demand_min_emeralds", demand.minEmeralds());
+        root.addProperty("demand_recovery_steps_per_day", demand.recoveryStepsPerDay());
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);

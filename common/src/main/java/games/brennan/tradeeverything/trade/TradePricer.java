@@ -79,6 +79,36 @@ public final class TradePricer {
         return preferred;
     }
 
+    /**
+     * Steps {@code chosen} down to a cheaper payout when a villager tired of this
+     * item ({@link VillagerDemands}) can no longer afford one unit of it. The ladder
+     * in {@link #payoutFor} reads the item's full value, so a netherite sword picked
+     * emerald blocks; at 1% demand not even a full batch is worth one block, and the
+     * undervalued fallback in {@link #quote} then handed over a whole block anyway.
+     * Tries emeralds, then the villager's own {@code preferred} goods — cheapest
+     * last — and keeps the first one a full discounted batch can pay for.
+     */
+    public static Item payoutForDemand(ItemStack input, Item chosen, Item preferred, MerchantOffers offers,
+                                       TradeEverythingConfig config, double demandFraction) {
+        if (input.isEmpty() || demandFraction >= DemandCurve.FULL) return chosen;
+        double value = ItemValuation.valueUnits(input) * demandFraction;
+        int chosenUnit = payoutValueUnits(chosen, offers);
+        Item cheapest = chosen;
+        int cheapestUnit = chosenUnit;
+        for (Item candidate : new Item[] {chosen, Items.EMERALD, preferred}) {
+            int unit = payoutValueUnits(candidate, offers);
+            if (unit > chosenUnit) continue; // never step UP the ladder
+            if (maxBatchValue(input, value * effectiveMultiplier(candidate, config), config) >= unit) {
+                return candidate;
+            }
+            if (unit < cheapestUnit) {
+                cheapest = candidate;
+                cheapestUnit = unit;
+            }
+        }
+        return cheapest;
+    }
+
     private static boolean overflowsStack(double singleValue, Item payout, int payoutValue, TradeEverythingConfig config) {
         int cap = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
         return singleValue > (double) payoutValue * cap;
@@ -141,7 +171,21 @@ public final class TradePricer {
     }
 
     public static Optional<Quote> quote(ItemStack input, Item payout, int payoutValue, TradeEverythingConfig config) {
-        int valueIn = ItemValuation.valueUnits(input);
+        return quote(input, payout, payoutValue, config, DemandCurve.FULL);
+    }
+
+    /**
+     * As {@link #quote(ItemStack, Item, int, TradeEverythingConfig)}, with the input
+     * valued at {@code demandFraction} of its worth — the villager's price after
+     * it has bought plenty of this item ({@link VillagerDemands}). The payout ladder
+     * ({@link #payoutFor}) still reads the full value, so a tired villager pays in the
+     * same currency, just less of it.
+     */
+    public static Optional<Quote> quote(ItemStack input, Item payout, int payoutValue, TradeEverythingConfig config,
+                                        double demandFraction) {
+        int fullValue = ItemValuation.valueUnits(input);
+        int valueIn = fullValue <= 0 ? 0
+            : (int) Math.max(1L, Math.round(fullValue * demandFraction));
         int valueOut = payoutValue;
         if (valueIn <= 0 || valueOut <= 0) return Optional.empty();
 

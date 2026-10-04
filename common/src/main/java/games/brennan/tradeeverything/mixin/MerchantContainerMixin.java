@@ -5,6 +5,7 @@ import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.RecipeValues;
 import games.brennan.tradeeverything.trade.RepriceSuppression;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
+import games.brennan.tradeeverything.trade.VillagerDemands;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.item.ItemStack;
@@ -28,7 +29,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>HEAD injection: rewrite offer 0 to (N × inserted item → M × payout)
  * first, then let vanilla's own body compute the sell slot against the fixed
  * offer. Change-detection on the inserted item (ignoring count) keeps this
- * idempotent and packet-quiet.</p>
+ * idempotent and packet-quiet; the villager's demand generation is part of it,
+ * so a sale re-quotes the rest of the stack at the villager's new, lower price
+ * (shift-click selling re-enters here between every trade).</p>
  */
 @Mixin(MerchantContainer.class)
 public abstract class MerchantContainerMixin {
@@ -39,6 +42,9 @@ public abstract class MerchantContainerMixin {
 
     @Unique
     private ItemStack tradeeverything$lastInput = ItemStack.EMPTY;
+
+    @Unique
+    private int tradeeverything$lastDemandGeneration;
 
     @Inject(method = "updateSellItem", at = @At("HEAD"))
     private void tradeeverything$reprice(CallbackInfo ci) {
@@ -69,8 +75,11 @@ public abstract class MerchantContainerMixin {
         ItemStack input = slotA.isEmpty() ? self.getItem(1) : slotA;
 
         // The cost count depends only on item + components, not inserted count.
-        if (ItemStack.isSameItemSameComponents(input, tradeeverything$lastInput)) return;
+        int demandGeneration = VillagerDemands.generation(villager);
+        if (ItemStack.isSameItemSameComponents(input, tradeeverything$lastInput)
+            && demandGeneration == tradeeverything$lastDemandGeneration) return;
         tradeeverything$lastInput = input.isEmpty() ? ItemStack.EMPTY : input.copyWithCount(1);
+        tradeeverything$lastDemandGeneration = demandGeneration;
 
         offers.set(0, OfferQuoter.quoteOrPlaceholder(villager, input, offers));
         OfferResync.send(villager);
