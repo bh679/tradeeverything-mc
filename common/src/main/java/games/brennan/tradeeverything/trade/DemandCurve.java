@@ -6,11 +6,12 @@ package games.brennan.tradeeverything.trade;
  *
  * <p>Everything is measured in <b>emeralds of trade value</b> (the item's full
  * value, before the payout margin). A villager pays full price for the first
- * {@link #freeEmeralds} of an item — and always for the first one — then one
- * sixteenth of the item's value less per step. A step is
+ * {@link #freeEmeralds} of an item — and always for the first one — then
+ * {@link #stepMultiplier} times the price per step (0.91: 9% off each step, so the
+ * price eases down instead of dropping off a cliff at the end). A step is
  * {@code stepEmeralds × value^stepExponent}: with the defaults (8, 0.25) it is
  * 8 emeralds for an item worth one, 4 for wheat, 23 for a netherite ingot — so
- * cheap items fade over many stacks and dear ones a sixteenth or three per sale,
+ * cheap items fade over many stacks and dear ones a few steps per sale,
  * instead of either crashing on the second sale or taking thousands to move.</p>
  *
  * <p>The price never falls below the higher of {@link #minFraction} of the
@@ -27,6 +28,7 @@ public record DemandCurve(
     double freeEmeralds,
     double stepEmeralds,
     double stepExponent,
+    double stepMultiplier,
     double minFraction,
     double minEmeralds,
     double recoveryStepsPerDay
@@ -35,16 +37,13 @@ public record DemandCurve(
     /** Full price, as the fraction {@link #priceFraction} returns. */
     public static final double FULL = 1.0;
 
-    /** Each step takes this share of the item's value off its price. */
-    public static final int STEPS_TO_ZERO = 16;
-
     public static final long TICKS_PER_DAY = 24_000L;
 
     /** Absorbs float noise in summed values so an exact step boundary isn't missed. */
     private static final double EPSILON = 1.0e-9;
 
     public static DemandCurve defaults() {
-        return new DemandCurve(true, 8.0, 8.0, 0.25, 0.01, 1.0 / 64, 2.0);
+        return new DemandCurve(true, 8.0, 8.0, 0.25, 0.91, 0.01, 1.0 / 64, 2.0);
     }
 
     /** Size of one step, in emeralds of trade, for an item worth {@code valueEmeralds}. */
@@ -59,7 +58,7 @@ public record DemandCurve(
     public double priceFraction(double soldEmeralds, double valueEmeralds) {
         if (!enabled || valueEmeralds <= 0.0 || soldEmeralds < freeEmeralds - EPSILON) return FULL;
         int steps = 1 + (int) Math.floor((soldEmeralds - freeEmeralds) / stepFor(valueEmeralds) + EPSILON);
-        double price = valueEmeralds * Math.max(0, STEPS_TO_ZERO - steps) / STEPS_TO_ZERO;
+        double price = valueEmeralds * Math.pow(stepMultiplier, steps);
         double floor = Math.max(minFraction * valueEmeralds, minEmeralds);
         return Math.min(valueEmeralds, Math.max(price, floor)) / valueEmeralds;
     }

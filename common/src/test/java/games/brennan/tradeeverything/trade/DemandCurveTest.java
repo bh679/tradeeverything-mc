@@ -23,36 +23,46 @@ class DemandCurveTest {
     }
 
     @Test
-    void diamondSwordSlidesOneSaleAtATimeDownToOnePercent() {
+    void netheriteAxeEasesDownInsteadOfDroppingOffACliff() {
+        // Paid at the 0.75 margin, in emerald blocks (9) then emeralds — the agreed shape.
+        double axe = 108.0;
+        String[] expected = {"9b", "6b", "3b", "2b", "1b", "1b", "7e", "4e", "3e", "2e", "1e"};
+        for (int n = 1; n <= expected.length; n++) {
+            double paid = priceOfNth(axe, n) * 0.75;
+            String shown = paid >= 9 ? (int) (paid / 9) + "b" : (int) paid + "e";
+            assertEquals(expected[n - 1], shown, "axe #" + n);
+        }
+    }
+
+    @Test
+    void diamondSwordLosesNinePercentPerStep() {
         double sword = 8.0;
         assertEquals(8.0, priceOfNth(sword, 1), DELTA);
-        assertEquals(7.5, priceOfNth(sword, 2), DELTA);
-        assertEquals(7.5, priceOfNth(sword, 3), DELTA);
-        assertEquals(7.0, priceOfNth(sword, 4), DELTA);
-        assertEquals(5.5, priceOfNth(sword, 10), DELTA);
-        assertEquals(4.0, priceOfNth(sword, 15), DELTA);
-        assertEquals(1.0, priceOfNth(sword, 25), DELTA);
-        assertEquals(0.08, priceOfNth(sword, 30), DELTA); // 1% of 8
-        assertEquals(0.08, priceOfNth(sword, 60), DELTA);
+        assertEquals(8.0 * 0.91, priceOfNth(sword, 2), DELTA);
+        assertEquals(8.0 * 0.91, priceOfNth(sword, 3), DELTA);
+        assertEquals(8.0 * 0.91 * 0.91, priceOfNth(sword, 4), DELTA);
+        assertEquals(2.834949, priceOfNth(sword, 20), 1.0e-6);
+        assertEquals(0.294808, priceOfNth(sword, 60), 1.0e-6);
+        assertEquals(0.08, priceOfNth(sword, 200), DELTA); // floor: 1% of 8
     }
 
     @Test
     void netheriteBottomsOutAtOnePercent() {
         double netherite = 64.0;
         assertEquals(64.0, priceOfNth(netherite, 1), DELTA);
-        assertEquals(52.0, priceOfNth(netherite, 2), DELTA);
-        assertEquals(0.64, priceOfNth(netherite, 7), DELTA);
+        assertEquals(48.228544, priceOfNth(netherite, 2), 1.0e-6);
+        assertEquals(0.64, priceOfNth(netherite, 30), DELTA);
     }
 
     @Test
     void cheapItemsBottomOutAtASixtyFourthOfAnEmerald() {
         double book = 1.0 / 8;
         assertEquals(book, priceOfNth(book, 64), DELTA); // last of the 8-emerald allowance
-        assertTrue(priceOfNth(book, 65) < book);
-        assertEquals(1.0 / 64, priceOfNth(book, 5000), DELTA);
+        assertEquals(book * 0.91, priceOfNth(book, 65), DELTA);
+        assertEquals(1.0 / 64, priceOfNth(book, 20_000), DELTA);
         double wheat = 1.0 / 16;
         assertEquals(wheat, priceOfNth(wheat, 128), DELTA);
-        assertTrue(priceOfNth(wheat, 129) < wheat);
+        assertEquals(wheat * 0.91, priceOfNth(wheat, 129), DELTA);
         assertEquals(1.0 / 64, priceOfNth(wheat, 5000), DELTA);
     }
 
@@ -80,10 +90,10 @@ class DemandCurveTest {
     @Test
     void recoversTwoStepsPerDay() {
         double sword = 8.0;
-        // 5 swords = 40 emeralds: 8 free + 2.4 steps → 13/16; a day drains two steps → 15/16.
+        // 5 swords = 40 emeralds: 8 free + 2.4 steps → 3 steps; a day drains two → 1 step.
         DemandLedger ledger = DemandLedger.EMPTY.withSale(SWORD, 5, sword, 0L, CURVE);
-        assertEquals(13.0 / 16, ledger.priceFraction(SWORD, sword, 0L, CURVE), DELTA);
-        assertEquals(15.0 / 16, ledger.priceFraction(SWORD, sword, DemandCurve.TICKS_PER_DAY, CURVE), DELTA);
+        assertEquals(Math.pow(0.91, 3), ledger.priceFraction(SWORD, sword, 0L, CURVE), DELTA);
+        assertEquals(0.91, ledger.priceFraction(SWORD, sword, DemandCurve.TICKS_PER_DAY, CURVE), DELTA);
         assertEquals(1.0, ledger.priceFraction(SWORD, sword, 10 * DemandCurve.TICKS_PER_DAY, CURVE), DELTA);
     }
 
@@ -105,7 +115,7 @@ class DemandCurveTest {
 
     @Test
     void disabledCurveAlwaysPaysFull() {
-        DemandCurve off = new DemandCurve(false, 8.0, 8.0, 0.25, 0.01, 1.0 / 64, 2.0);
+        DemandCurve off = new DemandCurve(false, 8.0, 8.0, 0.25, 0.91, 0.01, 1.0 / 64, 2.0);
         assertEquals(1.0, off.priceFraction(10_000.0, 8.0), DELTA);
     }
 }
