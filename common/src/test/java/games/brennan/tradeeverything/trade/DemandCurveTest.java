@@ -45,17 +45,21 @@ class DemandCurveTest {
     }
 
     @Test
-    void cheapItemsBottomOutAtASixteenthOfAnEmerald() {
+    void cheapItemsBottomOutAtASixtyFourthOfAnEmerald() {
         double book = 1.0 / 8;
         assertEquals(book, priceOfNth(book, 64), DELTA); // last of the 8-emerald allowance
         assertTrue(priceOfNth(book, 65) < book);
-        assertEquals(1.0 / 16, priceOfNth(book, 1000), DELTA);
+        assertEquals(1.0 / 64, priceOfNth(book, 5000), DELTA);
+        double wheat = 1.0 / 16;
+        assertEquals(wheat, priceOfNth(wheat, 128), DELTA);
+        assertTrue(priceOfNth(wheat, 129) < wheat);
+        assertEquals(1.0 / 64, priceOfNth(wheat, 5000), DELTA);
     }
 
     @Test
-    void itemsWorthASixteenthOrLessNeverDrop() {
-        assertEquals(1.0 / 16, priceOfNth(1.0 / 16, 5000), DELTA); // wheat
-        assertEquals(1.0 / 32, priceOfNth(1.0 / 32, 5000), DELTA); // string
+    void itemsWorthASixtyFourthOrLessNeverDrop() {
+        assertEquals(1.0 / 64, priceOfNth(1.0 / 64, 50_000), DELTA);
+        assertEquals(1.0 / 128, priceOfNth(1.0 / 128, 50_000), DELTA);
     }
 
     @Test
@@ -101,7 +105,7 @@ class DemandCurveTest {
 
     @Test
     void disabledCurveAlwaysPaysFull() {
-        DemandCurve off = new DemandCurve(false, 8.0, 8.0, 0.25, 0.01, 1.0 / 16, 2.0);
+        DemandCurve off = new DemandCurve(false, 8.0, 8.0, 0.25, 0.01, 1.0 / 64, 2.0);
         assertEquals(1.0, off.priceFraction(10_000.0, 8.0), DELTA);
     }
 }

@@ -44,7 +44,7 @@ public record DemandCurve(
     private static final double EPSILON = 1.0e-9;
 
     public static DemandCurve defaults() {
-        return new DemandCurve(true, 8.0, 8.0, 0.25, 0.01, 1.0 / 16, 2.0);
+        return new DemandCurve(true, 8.0, 8.0, 0.25, 0.01, 1.0 / 64, 2.0);
     }
 
     /** Size of one step, in emeralds of trade, for an item worth {@code valueEmeralds}. */
