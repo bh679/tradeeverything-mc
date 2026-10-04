@@ -28,10 +28,12 @@ public final class OfferQuoter {
         if (input.isEmpty() || TradeExemptions.isExempt(input, offers)) return Optional.empty();
         TradeEverythingConfig config = TradeEverythingConfig.get();
         Item preferred = ItemValuation.selectBuyItem(villager, offers);
-        Item payout = TradePricer.payoutFor(input, preferred, offers, config);
-        int payoutValue = TradePricer.payoutValueUnits(payout, offers);
-        // A villager that has already bought plenty of this item pays less for more.
+        // A villager that has already bought plenty of this item pays less for more —
+        // in a smaller currency once it can't afford one unit of the usual one.
         double demand = VillagerDemands.priceFraction(villager, input);
+        Item payout = TradePricer.payoutForDemand(input,
+            TradePricer.payoutFor(input, preferred, offers, config), preferred, offers, config, demand);
+        int payoutValue = TradePricer.payoutValueUnits(payout, offers);
         Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config, demand)
             .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()));
         // The villager's own stock buys back at 10% under its live price — a

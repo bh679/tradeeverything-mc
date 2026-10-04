@@ -79,6 +79,36 @@ public final class TradePricer {
         return preferred;
     }
 
+    /**
+     * Steps {@code chosen} down to a cheaper payout when a villager tired of this
+     * item ({@link VillagerDemands}) can no longer afford one unit of it. The ladder
+     * in {@link #payoutFor} reads the item's full value, so a netherite sword picked
+     * emerald blocks; at 1% demand not even a full batch is worth one block, and the
+     * undervalued fallback in {@link #quote} then handed over a whole block anyway.
+     * Tries emeralds, then the villager's own {@code preferred} goods — cheapest
+     * last — and keeps the first one a full discounted batch can pay for.
+     */
+    public static Item payoutForDemand(ItemStack input, Item chosen, Item preferred, MerchantOffers offers,
+                                       TradeEverythingConfig config, double demandFraction) {
+        if (input.isEmpty() || demandFraction >= DemandCurve.FULL) return chosen;
+        double value = ItemValuation.valueUnits(input) * demandFraction;
+        int chosenUnit = payoutValueUnits(chosen, offers);
+        Item cheapest = chosen;
+        int cheapestUnit = chosenUnit;
+        for (Item candidate : new Item[] {chosen, Items.EMERALD, preferred}) {
+            int unit = payoutValueUnits(candidate, offers);
+            if (unit > chosenUnit) continue; // never step UP the ladder
+            if (maxBatchValue(input, value * effectiveMultiplier(candidate, config), config) >= unit) {
+                return candidate;
+            }
+            if (unit < cheapestUnit) {
+                cheapest = candidate;
+                cheapestUnit = unit;
+            }
+        }
+        return cheapest;
+    }
+
     private static boolean overflowsStack(double singleValue, Item payout, int payoutValue, TradeEverythingConfig config) {
         int cap = Math.min(Math.min(64, new ItemStack(payout).getMaxStackSize()), config.maxResultCount());
         return singleValue > (double) payoutValue * cap;
