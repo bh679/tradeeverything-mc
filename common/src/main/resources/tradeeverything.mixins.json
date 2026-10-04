@@ -13,7 +13,8 @@
     "SmithingTransformRecipeAccessor"
   ],
   "client": [
-    "client.ContainerScreenKeyMixin"
+    "client.ContainerScreenKeyMixin",
+    "client.MerchantScreenDemandMixin"
   ],
   "server": [],
   "injectors": {
