@@ -15,8 +15,9 @@ import java.util.OptionalInt;
 
 /**
  * Up to three small red bars between the Trade Anything row's cost and its arrow
- * when the villager has tired of the item: one (shorter) once the price has
- * dropped at all, two once it is down by more than a quarter, three below half.
+ * when the villager has tired of the item: one once the price has dropped at all,
+ * two once it is down by more than a quarter, three below half. Each bar is three
+ * pixels wide with its corners clipped, and they rise in height left to right.
  * Hooked on {@code renderButtonArrows}, which vanilla calls once per visible row
  * with that row's offer and position.
  *
@@ -26,12 +27,11 @@ import java.util.OptionalInt;
 public abstract class MerchantScreenDemandMixin {
 
     /** First bar's x offset from the screen's left — just right of the cost item (x 10–26). */
-    @Unique private static final int FIRST_BAR_X = 32;
-    @Unique private static final int BAR_SPACING = 4;
-    @Unique private static final int BAR_WIDTH = 1;
-    /** Bar spans, as y offsets in the 16-pixel row: the first bar is the shorter one. */
-    @Unique private static final int SHORT_TOP = 5;
-    @Unique private static final int TALL_TOP = 4;
+    @Unique private static final int FIRST_BAR_X = 30;
+    @Unique private static final int BAR_SPACING = 5;
+    @Unique private static final int BAR_WIDTH = 3;
+    /** Each bar's top, as a y offset in the 16-pixel row: much shorter, slightly shorter, full. */
+    @Unique private static final int[] BAR_TOPS = {8, 5, 3};
     @Unique private static final int BAR_BOTTOM = 14;
     /** Percent of full price below which the second and third bars show. */
     @Unique private static final int SECOND_BAR_BELOW = 75;
@@ -47,8 +47,12 @@ public abstract class MerchantScreenDemandMixin {
             int bars = percent.getAsInt() < THIRD_BAR_BELOW ? 3 : percent.getAsInt() < SECOND_BAR_BELOW ? 2 : 1;
             for (int bar = 0; bar < bars; bar++) {
                 int x = posX + FIRST_BAR_X + bar * BAR_SPACING;
-                int top = posY + (bar == 0 ? SHORT_TOP : TALL_TOP);
-                graphics.fill(x, top, x + BAR_WIDTH, posY + BAR_BOTTOM, RED);
+                int top = posY + BAR_TOPS[bar];
+                int bottom = posY + BAR_BOTTOM;
+                // Middle column full height, outer columns one short at each end: rounded corners.
+                graphics.fill(x + 1, top, x + BAR_WIDTH - 1, bottom, RED);
+                graphics.fill(x, top + 1, x + 1, bottom - 1, RED);
+                graphics.fill(x + BAR_WIDTH - 1, top + 1, x + BAR_WIDTH, bottom - 1, RED);
             }
         } catch (Throwable t) {
             TradeEverything.LOGGER.warn("[TradeEverything] demand bars failed", t);
