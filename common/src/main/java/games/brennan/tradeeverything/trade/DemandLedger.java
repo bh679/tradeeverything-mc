@@ -45,9 +45,9 @@ public final class DemandLedger {
         return curve.recovered(entry.soldEmeralds(), entry.valueEmeralds(), now - entry.tick());
     }
 
-    /** What this villager pays for {@code itemId} right now, in sixteenths of full value. */
-    public int factorSixteenths(String itemId, double valueEmeralds, long now, DemandCurve curve) {
-        return curve.factorSixteenths(soldEmeralds(itemId, now, curve), valueEmeralds);
+    /** What this villager pays for {@code itemId} right now, as a fraction of full value. */
+    public double priceFraction(String itemId, double valueEmeralds, long now, DemandCurve curve) {
+        return curve.priceFraction(soldEmeralds(itemId, now, curve), valueEmeralds);
     }
 
     /** This ledger plus a sale of {@code count} items worth {@code valueEmeralds} each. */

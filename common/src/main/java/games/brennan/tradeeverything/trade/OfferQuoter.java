@@ -31,7 +31,7 @@ public final class OfferQuoter {
         Item payout = TradePricer.payoutFor(input, preferred, offers, config);
         int payoutValue = TradePricer.payoutValueUnits(payout, offers);
         // A villager that has already bought plenty of this item pays less for more.
-        int demand = VillagerDemands.factorSixteenths(villager, input);
+        double demand = VillagerDemands.priceFraction(villager, input);
         Optional<MerchantOffer> valued = TradePricer.quote(input, payout, payoutValue, config, demand)
             .map(quote -> SyntheticOfferFactory.priced(input, quote.costCount(), payout, quote.resultCount()));
         // The villager's own stock buys back at 10% under its live price — a

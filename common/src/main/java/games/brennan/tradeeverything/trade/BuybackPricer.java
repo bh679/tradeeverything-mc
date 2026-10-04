@@ -28,14 +28,14 @@ public final class BuybackPricer {
         return buybackOffer(input, offers, DemandCurve.FULL);
     }
 
-    /** As {@link #buybackOffer(ItemStack, MerchantOffers)}, paying {@code demandSixteenths}/16 of it. */
-    public static Optional<MerchantOffer> buybackOffer(ItemStack input, MerchantOffers offers, int demandSixteenths) {
+    /** As {@link #buybackOffer(ItemStack, MerchantOffers)}, paying {@code demandFraction} of it. */
+    public static Optional<MerchantOffer> buybackOffer(ItemStack input, MerchantOffers offers, double demandFraction) {
         if (input.isEmpty()) return Optional.empty();
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             if (!ItemStack.isSameItemSameComponents(input, offer.getResult())) continue;
             ItemStack liveCost = offer.getCostA(); // discount-adjusted price
-            int payout = (int) Math.floor(liveCost.getCount() * MARGIN * demandSixteenths / DemandCurve.FULL);
+            int payout = (int) Math.floor(liveCost.getCount() * MARGIN * demandFraction);
             if (payout < 1) return Optional.empty(); // too cheap to buy back
             int costCount = Math.max(1, offer.getResult().getCount());
             return Optional.of(SyntheticOfferFactory.priced(

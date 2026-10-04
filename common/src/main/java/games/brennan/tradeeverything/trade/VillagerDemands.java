@@ -29,14 +29,14 @@ public final class VillagerDemands {
 
     private VillagerDemands() {}
 
-    /** What {@code villager} pays for one of {@code input} right now, in sixteenths of full value. */
-    public static int factorSixteenths(AbstractVillager villager, ItemStack input) {
+    /** What {@code villager} pays for one of {@code input} right now, as a fraction of full value. */
+    public static double priceFraction(AbstractVillager villager, ItemStack input) {
         DemandCurve curve = TradeEverythingConfig.get().demand();
         if (!curve.enabled() || input.isEmpty() || !(villager instanceof VillagerDemand demand)) {
             return DemandCurve.FULL;
         }
         return demand.tradeeverything$demandLedger()
-            .factorSixteenths(itemId(input), valueEmeralds(input), villager.level().getGameTime(), curve);
+            .priceFraction(itemId(input), valueEmeralds(input), villager.level().getGameTime(), curve);
     }
 
     /** Remembers a completed Trade Anything sale: the offer's cost is what the villager bought. */

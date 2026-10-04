@@ -194,7 +194,8 @@ public record TradeEverythingConfig(
             clamp(number(root, "demand_free_emeralds", d.freeEmeralds()), 0.0, 100_000.0),
             clamp(number(root, "demand_step_emeralds", d.stepEmeralds()), 0.01, 100_000.0),
             clamp(number(root, "demand_step_exponent", d.stepExponent()), 0.0, 1.0),
-            (int) clamp(number(root, "demand_min_sixteenths", d.minSixteenths()), 0, DemandCurve.FULL),
+            clamp(number(root, "demand_min_fraction", d.minFraction()), 0.0, 1.0),
+            clamp(number(root, "demand_min_emeralds", d.minEmeralds()), 0.0, 100_000.0),
             clamp(number(root, "demand_recovery_steps_per_day", d.recoveryStepsPerDay()), 0.0, 10_000.0));
     }
 
@@ -283,7 +284,8 @@ public record TradeEverythingConfig(
         root.addProperty("demand_free_emeralds", demand.freeEmeralds());
         root.addProperty("demand_step_emeralds", demand.stepEmeralds());
         root.addProperty("demand_step_exponent", demand.stepExponent());
-        root.addProperty("demand_min_sixteenths", demand.minSixteenths());
+        root.addProperty("demand_min_fraction", demand.minFraction());
+        root.addProperty("demand_min_emeralds", demand.minEmeralds());
         root.addProperty("demand_recovery_steps_per_day", demand.recoveryStepsPerDay());
         try {
             Files.createDirectories(path.getParent());
