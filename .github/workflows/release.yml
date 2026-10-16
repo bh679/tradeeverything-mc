@@ -2,6 +2,11 @@ name: Release
 
 # Releases are dispatch-only. There is intentionally no `push: tags` trigger:
 # the release workflow is the SOURCE of tags, not a consumer.
+#
+# One Stonecutter build produces every Minecraft version x loader jar
+# (build/release/). The `publish` matrix then uploads each jar to
+# Modrinth/CurseForge with its own game version, loader and Java version.
+# Keep the matrix in step with settings.gradle.kts.
 
 on:
   workflow_dispatch:
@@ -16,6 +21,10 @@ on:
         type: boolean
         default: false
 
+env:
+  # Jars the build must produce — one per publish-matrix entry below.
+  EXPECTED_JARS: 11
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -23,20 +32,30 @@ jobs:
       contents: write
     env:
       RELEASE_TAG: ${{ inputs.tag }}
+    outputs:
+      mod_version: ${{ steps.version.outputs.mod_version }}
+      type: ${{ steps.release_type.outputs.type }}
+      major_bump: ${{ steps.release_type.outputs.major_bump }}
+      prerelease: ${{ steps.release_type.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
+      # 1.20.1 builds on 17, 1.21.x on 21, 26.x on 25. The last one listed is the default JDK.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: |
+            17
+            21
+            25
 
       - uses: gradle/actions/setup-gradle@v3
 
       - name: Verify input tag matches mod_version on main
+        id: version
         run: |
           TAG="${RELEASE_TAG#v}"
           GRADLE_VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
@@ -45,6 +64,7 @@ jobs:
             exit 1
           fi
           echo "MOD_VERSION=$GRADLE_VERSION" >> "$GITHUB_ENV"
+          echo "mod_version=$GRADLE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check tag does not already exist
         env:
@@ -76,21 +96,27 @@ jobs:
             echo "major_bump=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - run: ./gradlew build --no-daemon
+      - name: Build and test every Minecraft version x loader
+        run: ./gradlew chiseledTest collectReleaseJars --no-daemon
 
-      - name: Stage loader jars for release
+      - name: Check release jars
         run: |
-          mkdir -p release-artifacts
-          cp fabric/build/libs/tradeeverything-fabric-${MOD_VERSION}.jar      release-artifacts/
-          cp forge/build/libs/tradeeverything-forge-${MOD_VERSION}.jar        release-artifacts/
-          cp neoforge/build/libs/tradeeverything-neoforge-${MOD_VERSION}.jar  release-artifacts/
-          echo "=== release-artifacts contents ==="
-          ls -la release-artifacts/
-          COUNT=$(ls release-artifacts/*.jar | wc -l)
-          if [ "$COUNT" -ne 3 ]; then
-            echo "::error::Expected 3 loader jars in release-artifacts/, found $COUNT"
+          echo "=== build/release contents ==="
+          ls -la build/release/
+          COUNT=$(ls build/release/*.jar | wc -l)
+          if [ "$COUNT" -ne "$EXPECTED_JARS" ]; then
+            echo "::error::Expected $EXPECTED_JARS jars in build/release/, found $COUNT"
             exit 1
           fi
+          # Dungeon Train resolves the 1.21.1 NeoForge jar by this exact, suffix-free name.
+          test -f "build/release/tradeeverything-neoforge-${MOD_VERSION}.jar" \
+            || { echo "::error::Missing flat-named tradeeverything-neoforge-${MOD_VERSION}.jar"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-jars
+          path: build/release/*.jar
+          if-no-files-found: error
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -98,9 +124,39 @@ jobs:
           name: Trade Everything ${{ env.RELEASE_TAG }}
           tag_name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
-          files: release-artifacts/*.jar
+          files: build/release/*.jar
           fail_on_unmatched_files: true
           prerelease: ${{ steps.release_type.outputs.prerelease == 'true' }}
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # One at a time: Modrinth/CurseForge rate-limit bursts of uploads.
+      max-parallel: 1
+      matrix:
+        include:
+          # `suffix` is the jar's file-name suffix; 1.21.1 keeps none (Dungeon Train).
+          - { mc: "1.20.1",  loader: fabric,   suffix: "+mc1.20.1",  java: 17 }
+          - { mc: "1.20.1",  loader: forge,    suffix: "+mc1.20.1",  java: 17 }
+          - { mc: "1.21.1",  loader: fabric,   suffix: "",           java: 21 }
+          - { mc: "1.21.1",  loader: forge,    suffix: "",           java: 21 }
+          - { mc: "1.21.1",  loader: neoforge, suffix: "",           java: 21 }
+          - { mc: "1.21.11", loader: fabric,   suffix: "+mc1.21.11", java: 21 }
+          - { mc: "1.21.11", loader: forge,    suffix: "+mc1.21.11", java: 21 }
+          - { mc: "1.21.11", loader: neoforge, suffix: "+mc1.21.11", java: 21 }
+          - { mc: "26.3",    loader: fabric,   suffix: "+mc26.3",    java: 25 }
+          - { mc: "26.3",    loader: forge,    suffix: "+mc26.3",    java: 25 }
+          - { mc: "26.3",    loader: neoforge, suffix: "+mc26.3",    java: 25 }
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      MOD_VERSION: ${{ needs.release.outputs.mod_version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-jars
+          path: release-artifacts
 
       - name: Check mod-platform publish prerequisites
         id: publish_check
@@ -125,8 +181,19 @@ jobs:
           echo "modrinth=$MODRINTH_READY" >> "$GITHUB_OUTPUT"
           echo "curseforge=$CURSEFORGE_READY" >> "$GITHUB_OUTPUT"
 
-      - name: Publish Fabric to Modrinth + CurseForge
-        id: publish_fabric
+      - name: Compute version name
+        id: names
+        run: |
+          # 1.21.1 keeps the historical v<version>+<loader> version numbers.
+          if [ -z "${{ matrix.suffix }}" ]; then
+            echo "version=${RELEASE_TAG}+${{ matrix.loader }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${RELEASE_TAG}+${{ matrix.mc }}-${{ matrix.loader }}" >> "$GITHUB_OUTPUT"
+          fi
+          LOADER_NAME=$(echo "${{ matrix.loader }}" | sed 's/neoforge/NeoForge/;s/forge/Forge/;s/fabric/Fabric/')
+          echo "name=Trade Everything ${RELEASE_TAG} (${LOADER_NAME} ${{ matrix.mc }})" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to Modrinth + CurseForge
         if: steps.publish_check.outputs.modrinth == 'true' || steps.publish_check.outputs.curseforge == 'true'
         uses: Kir-Antipov/mc-publish@v3.3
         with:
@@ -134,59 +201,25 @@ jobs:
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           curseforge-id: ${{ steps.publish_check.outputs.curseforge == 'true' && vars.CURSEFORGE_PROJECT_ID || '' }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: release-artifacts/tradeeverything-fabric-${{ env.MOD_VERSION }}.jar
-          name: Trade Everything ${{ env.RELEASE_TAG }} (Fabric)
-          version: ${{ env.RELEASE_TAG }}+fabric
-          version-type: ${{ steps.release_type.outputs.type }}
-          loaders: fabric
-          game-versions: 1.21.1
-          java: 21
+          files: release-artifacts/tradeeverything-${{ matrix.loader }}-${{ env.MOD_VERSION }}${{ matrix.suffix }}.jar
+          name: ${{ steps.names.outputs.name }}
+          version: ${{ steps.names.outputs.version }}
+          version-type: ${{ needs.release.outputs.type }}
+          loaders: ${{ matrix.loader }}
+          game-versions: ${{ matrix.mc }}
+          java: ${{ matrix.java }}
           retry-attempts: 2
           retry-delay: 10000
           fail-mode: warn
 
-      - name: Publish Forge to Modrinth + CurseForge
-        id: publish_forge
-        if: steps.publish_check.outputs.modrinth == 'true' || steps.publish_check.outputs.curseforge == 'true'
-        uses: Kir-Antipov/mc-publish@v3.3
-        with:
-          modrinth-id: ${{ steps.publish_check.outputs.modrinth == 'true' && vars.MODRINTH_PROJECT_ID || '' }}
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          curseforge-id: ${{ steps.publish_check.outputs.curseforge == 'true' && vars.CURSEFORGE_PROJECT_ID || '' }}
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: release-artifacts/tradeeverything-forge-${{ env.MOD_VERSION }}.jar
-          name: Trade Everything ${{ env.RELEASE_TAG }} (Forge)
-          version: ${{ env.RELEASE_TAG }}+forge
-          version-type: ${{ steps.release_type.outputs.type }}
-          loaders: forge
-          game-versions: 1.21.1
-          java: 21
-          retry-attempts: 2
-          retry-delay: 10000
-          fail-mode: warn
-
-      - name: Publish NeoForge to Modrinth + CurseForge
-        id: publish_neoforge
-        if: steps.publish_check.outputs.modrinth == 'true' || steps.publish_check.outputs.curseforge == 'true'
-        uses: Kir-Antipov/mc-publish@v3.3
-        with:
-          modrinth-id: ${{ steps.publish_check.outputs.modrinth == 'true' && vars.MODRINTH_PROJECT_ID || '' }}
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          curseforge-id: ${{ steps.publish_check.outputs.curseforge == 'true' && vars.CURSEFORGE_PROJECT_ID || '' }}
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: release-artifacts/tradeeverything-neoforge-${{ env.MOD_VERSION }}.jar
-          name: Trade Everything ${{ env.RELEASE_TAG }} (NeoForge)
-          version: ${{ env.RELEASE_TAG }}+neoforge
-          version-type: ${{ steps.release_type.outputs.type }}
-          loaders: neoforge
-          game-versions: 1.21.1
-          java: 21
-          retry-attempts: 2
-          retry-delay: 10000
-          fail-mode: warn
-
+  finish:
+    needs: [release, publish]
+    if: ${{ always() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
       - name: Set Modrinth side metadata (server required, client optional)
-        if: steps.publish_check.outputs.modrinth == 'true'
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
@@ -206,6 +239,10 @@ jobs:
           # from the project's environment setting and is not written by
           # mc-publish — set it once under Project → Settings → Environment
           # (server-required / client-optional); it persists across versions.
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_PROJECT_ID" ]; then
+            echo "::warning::Modrinth secret/variable missing — skipping side metadata."
+            exit 0
+          fi
           HTTP_CODE=$(curl -sS -o /tmp/modrinth_env.out -w "%{http_code}" \
             -X PATCH "https://api.modrinth.com/v2/project/${MODRINTH_PROJECT_ID}" \
             -H "Authorization: ${MODRINTH_TOKEN}" \
@@ -218,26 +255,16 @@ jobs:
             echo "::warning::Could not update Modrinth side metadata (HTTP ${HTTP_CODE}) — set it manually in project settings."
           fi
 
-      - name: Check Discord webhook prerequisites
-        id: discord_check
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::DISCORD_WEBHOOK_URL secret not set — skipping Discord notification."
-          fi
-
       - name: Notify Discord
-        if: ${{ always() && steps.discord_check.outputs.ready == 'true' && env.RELEASE_TAG != '' && (inputs.notify_discord || steps.release_type.outputs.major_bump == 'true') }}
+        if: ${{ inputs.notify_discord || needs.release.outputs.major_bump == 'true' }}
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
           REPO: ${{ github.repository }}
-          PRERELEASE: ${{ steps.release_type.outputs.prerelease }}
-          GH_TOKEN: ${{ github.token }}
         run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::warning::DISCORD_WEBHOOK_URL secret not set — skipping Discord notification."
+            exit 0
+          fi
           RELEASE_URL="https://github.com/${REPO}/releases/tag/${RELEASE_TAG}"
           curl -s -H "Content-Type: application/json" \
             -d "{\"content\":\"**Trade Everything ${RELEASE_TAG}** released! ${RELEASE_URL}\"}" \

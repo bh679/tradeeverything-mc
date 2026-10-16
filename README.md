@@ -1,7 +1,14 @@
 # Trade Everything
 
-A Minecraft mod (Fabric / Forge / NeoForge, MC 1.21.1) that gives every villager an
-extra **"Trade Anything"** slot at the top of its trade list.
+A Minecraft mod that gives every villager an extra **"Trade Anything"** slot at the
+top of its trade list.
+
+| Minecraft | Fabric | Forge | NeoForge |
+|---|---|---|---|
+| 1.20.1  | ✅ | ✅ | — (use the Forge jar) |
+| 1.21.1  | ✅ | ✅ | ✅ |
+| 1.21.11 | ✅ | ✅ | ✅ |
+| 26.3    | ✅ | ✅ | ✅ |
 
 Put **any item** in — the villager exchanges it for an item it's buying (wheat from a
 farmer, coal from an armorer, paper from a librarian…). Exchange rates are driven by a
@@ -33,11 +40,21 @@ worth**, scaling all the way up (one diamond buys a stack of coal).
 
 ## Building
 
+The build is [Stonecutter](https://stonecutter.kikugie.dev/) + Architectury: one
+source tree (`src/`, written against 1.21.1) is copied into each Minecraft version,
+with version differences as `//? if` blocks and the pure renames as replacements in
+`stonecutter.gradle.kts`. Per-version dependency numbers live in
+`versions/<mc>/gradle.properties`.
+
 ```bash
-./gradlew build
+./gradlew collectReleaseJars   # every version x loader → build/release/
+./gradlew chiseledTest         # unit tests on every version
+./gradlew :fabric:1.20.1:runClient
 ```
 
-Jars land in `{fabric,forge,neoforge}/build/libs/`.
+The 1.21.1 jars are named `tradeeverything-<loader>-<version>.jar`; every other
+version adds `+mc<version>`. Gradle picks up whichever JDK each version needs (17,
+21 or 25).
 
 ## Licence
 
