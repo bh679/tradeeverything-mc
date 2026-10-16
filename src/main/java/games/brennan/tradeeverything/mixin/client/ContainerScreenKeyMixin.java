@@ -1,12 +1,14 @@
 package games.brennan.tradeeverything.mixin.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import games.brennan.tradeeverything.TradeEverything;
 import games.brennan.tradeeverything.client.TradeAnythingRefill;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
-import org.lwjgl.glfw.GLFW;
+//? if >=1.21.11
+/*import net.minecraft.client.input.KeyEvent;*/
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -42,9 +44,14 @@ public abstract class ContainerScreenKeyMixin {
      * it claims only the keypress vanilla was going to discard.
      */
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    //? if >=1.21.11 {
+    /*private void tradeeverything$spaceRefill(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+        int keyCode = event.key();
+    *///?} else {
     private void tradeeverything$spaceRefill(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+    //?}
         try {
-            if (keyCode != GLFW.GLFW_KEY_SPACE) return;
+            if (keyCode != InputConstants.KEY_SPACE) return;
             if (!((Object) this instanceof MerchantScreen screen)) return;
             if (((Screen) (Object) this).getFocused() != null) return;
 

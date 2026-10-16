@@ -3,10 +3,10 @@ package games.brennan.tradeeverything.trade;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.trading.MerchantOffer;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -55,12 +55,16 @@ public final class VillagerDemands {
         return villager instanceof VillagerDemand demand ? demand.tradeeverything$demandGeneration() : 0;
     }
 
-    /** Writes the still-unrecovered entries; writes nothing when the villager has fully recovered. */
-    public static void save(AbstractVillager villager, CompoundTag tag) {
-        if (!(villager instanceof VillagerDemand demand)) return;
+    /**
+     * The still-unrecovered entries as the compound stored under {@link #NBT_KEY},
+     * or null when the villager has fully recovered (nothing is written).
+     */
+    @Nullable
+    public static CompoundTag encode(AbstractVillager villager) {
+        if (!(villager instanceof VillagerDemand demand)) return null;
         DemandLedger ledger = demand.tradeeverything$demandLedger()
             .pruned(villager.level().getGameTime(), TradeEverythingConfig.get().demand());
-        if (ledger.entries().isEmpty()) return;
+        if (ledger.entries().isEmpty()) return null;
         CompoundTag root = new CompoundTag();
         ledger.entries().forEach((id, entry) -> {
             CompoundTag e = new CompoundTag();
@@ -69,24 +73,33 @@ public final class VillagerDemands {
             e.putDouble(VALUE, entry.valueEmeralds());
             root.put(id, e);
         });
-        tag.put(NBT_KEY, root);
+        return root;
     }
 
-    public static void load(AbstractVillager villager, CompoundTag tag) {
+    /** Restores the ledger from the compound stored under {@link #NBT_KEY}; null starts fresh. */
+    public static void decode(AbstractVillager villager, @Nullable CompoundTag root) {
         if (!(villager instanceof VillagerDemand demand)) return;
-        if (!tag.contains(NBT_KEY, Tag.TAG_COMPOUND)) {
+        if (root == null) {
             demand.tradeeverything$setDemandLedger(DemandLedger.EMPTY);
             return;
         }
-        CompoundTag root = tag.getCompound(NBT_KEY);
         Map<String, DemandLedger.Entry> entries = new HashMap<>();
+        //? if >=1.21.11 {
+        /*for (String id : root.keySet()) {
+            CompoundTag e = root.getCompoundOrEmpty(id);
+            double sold = e.getDoubleOr(SOLD, 0.0);
+            double value = e.getDoubleOr(VALUE, 0.0);
+            long tick = e.getLongOr(TICK, 0L);
+        *///?} else {
         for (String id : root.getAllKeys()) {
             CompoundTag e = root.getCompound(id);
             double sold = e.getDouble(SOLD);
             double value = e.getDouble(VALUE);
+            long tick = e.getLong(TICK);
+        //?}
             // A hand-edited or corrupt entry is dropped rather than trusted.
             if (sold > 0.0 && value > 0.0 && Double.isFinite(sold) && Double.isFinite(value)) {
-                entries.put(id, new DemandLedger.Entry(sold, e.getLong(TICK), value));
+                entries.put(id, new DemandLedger.Entry(sold, tick, value));
             }
         }
         demand.tradeeverything$setDemandLedger(DemandLedger.of(entries));

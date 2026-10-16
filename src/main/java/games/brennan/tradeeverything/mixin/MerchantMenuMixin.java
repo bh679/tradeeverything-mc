@@ -6,6 +6,8 @@ import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.RepriceSuppression;
 import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
 import net.minecraft.server.level.ServerPlayer;
+//? if >=26
+/*import net.minecraft.util.Prediction;*/
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MerchantContainer;
@@ -129,8 +131,7 @@ public abstract class MerchantMenuMixin {
 
         // Loose emeralds: inventory + whatever sits in the payment slots
         // (vanilla returns those to the inventory before refilling).
-        int loose = player.getInventory().clearOrCountMatchingItems(
-            stack -> stack.is(Items.EMERALD), 0, player.inventoryMenu.getCraftSlots());
+        int loose = tradeeverything$countOrClear(player, Items.EMERALD, 0);
         MerchantContainer tradeContainer = accessor.tradeeverything$getTradeContainer();
         for (int slot = 0; slot <= 1; slot++) {
             ItemStack inSlot = tradeContainer.getItem(slot);
@@ -139,11 +140,26 @@ public abstract class MerchantMenuMixin {
         if (loose >= needed) return;
 
         int blocksNeeded = (needed - loose + 8) / 9;
-        int broken = player.getInventory().clearOrCountMatchingItems(
-            stack -> stack.is(Items.EMERALD_BLOCK), blocksNeeded, player.inventoryMenu.getCraftSlots());
+        int broken = tradeeverything$countOrClear(player, Items.EMERALD_BLOCK, blocksNeeded);
         if (broken > 0) {
+            //? if >=26 {
+            /*player.getInventory().placeItemBackInInventory(new ItemStack(Items.EMERALD, broken * 9), Prediction.SERVER_ONLY);
+            *///?} else {
             player.getInventory().placeItemBackInInventory(new ItemStack(Items.EMERALD, broken * 9));
+            //?}
         }
+    }
+
+    /** Counts {@code item} across the inventory when {@code max} is 0, else removes up to {@code max} of it. */
+    @Unique
+    private static int tradeeverything$countOrClear(ServerPlayer player, Item item, int max) {
+        //? if >=26 {
+        /*return player.getInventory().clearOrCountMatchingItems(
+            stack -> stack.is(item), max == 0, max == 0 ? -1 : max, player.inventoryMenu.getCraftSlots());
+        *///?} else {
+        return player.getInventory().clearOrCountMatchingItems(
+            stack -> stack.is(item), max, player.inventoryMenu.getCraftSlots());
+        //?}
     }
 
     /** Emeralds this offer charges (discounted A-cost + B-cost). */

@@ -1,13 +1,19 @@
 package games.brennan.tradeeverything.trade;
 
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
-import games.brennan.tradeeverything.mixin.SmithingTransformRecipeAccessor;
-import net.minecraft.core.NonNullList;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
+//? if >=1.21.11 {
+/*import net.minecraft.util.context.ContextMap;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
+*///?} else {
+import games.brennan.tradeeverything.mixin.SmithingTransformRecipeAccessor;
+import net.minecraft.core.NonNullList;
+//?}
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
@@ -110,6 +116,33 @@ public final class RecipeValues {
     private static Map<Item, List<IndexedRecipe>> buildIndex(MinecraftServer server, RecipeManager manager) {
         Map<Item, List<IndexedRecipe>> index = new HashMap<>();
         int broken = 0;
+        //? if >=1.21.11 {
+        /*ContextMap display = SlotDisplayContext.fromLevel(server.overworld());
+        for (RecipeHolder<?> holder : manager.getRecipes()) {
+            // One malformed modded recipe must not void the whole table.
+            try {
+                Recipe<?> recipe = holder.value();
+                List<Ingredient> ingredients;
+                if (recipe instanceof SmithingTransformRecipe smithing) {
+                    // Netherite gear: template + base + addition, all consumed.
+                    ingredients = new ArrayList<>();
+                    smithing.templateIngredient().ifPresent(ingredients::add);
+                    ingredients.add(smithing.baseIngredient());
+                    smithing.additionIngredient().ifPresent(ingredients::add);
+                } else if (recipe.getType() == RecipeType.CRAFTING) {
+                    ingredients = recipe.placementInfo().ingredients();
+                } else {
+                    continue;
+                }
+                if (ingredients.isEmpty() || recipe.display().isEmpty()) continue;
+                ItemStack result = recipe.display().get(0).result().resolveForFirstStack(display);
+                if (result.isEmpty()) continue;
+                addRecipe(index, result, ingredients);
+            } catch (Throwable t) {
+                broken++;
+            }
+        }
+        *///?} else {
         for (RecipeHolder<?> holder : manager.getAllRecipesFor(RecipeType.CRAFTING)) {
             // One malformed modded recipe must not void the whole table.
             try {
@@ -139,6 +172,7 @@ public final class RecipeValues {
                 broken++;
             }
         }
+        //?}
         if (broken > 0) {
             LOGGER.warn("[TradeEverything] skipped {} unreadable recipes during value indexing", broken);
         }
@@ -148,7 +182,11 @@ public final class RecipeValues {
     private static void addRecipe(Map<Item, List<IndexedRecipe>> index, ItemStack result, List<Ingredient> ingredients) {
         List<ItemStack[]> options = new ArrayList<>();
         for (Ingredient ingredient : ingredients) {
+            //? if >=1.21.11 {
+            /*ItemStack[] items = ingredient.items().map(item -> new ItemStack(item.value())).toArray(ItemStack[]::new);
+            *///?} else {
             ItemStack[] items = ingredient.getItems();
+            //?}
             if (items.length > 0) options.add(items);
         }
         if (options.isEmpty()) return;

@@ -8,6 +8,12 @@ import games.brennan.tradeeverything.trade.SyntheticOfferFactory;
 import games.brennan.tradeeverything.trade.VillagerDemand;
 import games.brennan.tradeeverything.trade.VillagerDemands;
 import net.minecraft.nbt.CompoundTag;
+//? if >=1.21.11 {
+/*import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
+*///?} else {
+import net.minecraft.nbt.Tag;
+//?}
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.player.Player;
@@ -15,6 +21,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -107,13 +114,23 @@ public abstract class AbstractVillagerTradingMixin implements VillagerDemand {
         }
     }
 
+    //? if >=26 {
+    /*@Redirect(
+        method = "addAdditionalSaveData",
+        at = @At(value = "FIELD", opcode = Opcodes.GETFIELD,
+            target = "Lnet/minecraft/world/entity/npc/AbstractVillager;offers:Lnet/minecraft/world/item/trading/MerchantOffers;")
+    )
+    *///?} else {
     @Redirect(
         method = "addAdditionalSaveData",
         at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/npc/AbstractVillager;getOffers()Lnet/minecraft/world/item/trading/MerchantOffers;")
     )
+    //?}
     private MerchantOffers tradeeverything$saveWithoutSynthetic(AbstractVillager self) {
-        MerchantOffers real = self.getOffers();
+        // 26.x saves straight from the field (no lazy init), which may be null.
+        MerchantOffers real = /*? if >=26 {*//*this.offers*//*?} else {*/self.getOffers()/*?}*/;
+        if (real == null) return null;
         try {
             if (real.stream().noneMatch(SyntheticOfferFactory::isSynthetic)) return real;
             MerchantOffers filtered = new MerchantOffers();
@@ -142,10 +159,32 @@ public abstract class AbstractVillagerTradingMixin implements VillagerDemand {
         }
     }
 
+    //? if >=1.21.11 {
+    /*@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
+    private void tradeeverything$saveDemand(ValueOutput output, CallbackInfo ci) {
+        try {
+            CompoundTag demand = VillagerDemands.encode((AbstractVillager) (Object) this);
+            if (demand != null) output.store(VillagerDemands.NBT_KEY, CompoundTag.CODEC, demand);
+        } catch (Throwable t) {
+            TradeEverything.LOGGER.warn("[TradeEverything] demand save failed; villager saved without it", t);
+        }
+    }
+
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
+    private void tradeeverything$loadDemand(ValueInput input, CallbackInfo ci) {
+        try {
+            VillagerDemands.decode((AbstractVillager) (Object) this,
+                input.read(VillagerDemands.NBT_KEY, CompoundTag.CODEC).orElse(null));
+        } catch (Throwable t) {
+            TradeEverything.LOGGER.warn("[TradeEverything] demand load failed; villager starts fresh", t);
+        }
+    }
+    *///?} else {
     @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
     private void tradeeverything$saveDemand(CompoundTag tag, CallbackInfo ci) {
         try {
-            VillagerDemands.save((AbstractVillager) (Object) this, tag);
+            CompoundTag demand = VillagerDemands.encode((AbstractVillager) (Object) this);
+            if (demand != null) tag.put(VillagerDemands.NBT_KEY, demand);
         } catch (Throwable t) {
             TradeEverything.LOGGER.warn("[TradeEverything] demand save failed; villager saved without it", t);
         }
@@ -154,9 +193,11 @@ public abstract class AbstractVillagerTradingMixin implements VillagerDemand {
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
     private void tradeeverything$loadDemand(CompoundTag tag, CallbackInfo ci) {
         try {
-            VillagerDemands.load((AbstractVillager) (Object) this, tag);
+            VillagerDemands.decode((AbstractVillager) (Object) this,
+                tag.contains(VillagerDemands.NBT_KEY, Tag.TAG_COMPOUND) ? tag.getCompound(VillagerDemands.NBT_KEY) : null);
         } catch (Throwable t) {
             TradeEverything.LOGGER.warn("[TradeEverything] demand load failed; villager starts fresh", t);
         }
     }
+    //?}
 }
