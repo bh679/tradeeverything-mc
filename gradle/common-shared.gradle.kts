@@ -27,3 +27,11 @@ tasks.named<ProcessResources>("processResources") {
     filesMatching(listOf("tradeeverything.mixins.json", "pack.mcmeta")) { expand(props) }
 }
 
+
+// Fabric's sponge-mixin 0.17.4+ (pulled in by Fabric Loader 0.19) declares
+// @Redirect.at() as At[], so javac writes `at=[@At(...)]`. Fabric reads that, but
+// the Mixin/MixinExtras on Forge and NeoForge 1.21.11 expect a single @At and crash
+// on load. Compile the common code against the last single-@At annotations.
+configurations.configureEach {
+    resolutionStrategy.force("net.fabricmc:sponge-mixin:0.16.5+mixin.0.8.7")
+}

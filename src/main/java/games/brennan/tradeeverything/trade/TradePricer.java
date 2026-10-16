@@ -1,8 +1,11 @@
 package games.brennan.tradeeverything.trade;
 
+import games.brennan.tradeeverything.compat.Costs;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
+//? if >=1.20.5 {
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
+//?}
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -32,8 +35,12 @@ public final class TradePricer {
     private static final double ACCEPTABLE_OVERPAY = 0.10;
 
     /** Components that only record wear — see {@link #isCraftEquivalent(ItemStack)}. */
+    //? if >=1.20.5 {
     private static final Set<DataComponentType<?>> DURABILITY_COMPONENTS =
         Set.of(DataComponents.DAMAGE, DataComponents.MAX_DAMAGE);
+    //?} else {
+    /*private static final Set<String> DURABILITY_COMPONENTS = Set.of("Damage");
+    *///?}
 
     private TradePricer() {}
 
@@ -161,9 +168,9 @@ public final class TradePricer {
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             if (!offer.getResult().is(Items.EMERALD)) continue;
-            if (offer.getItemCostB().isPresent()) continue;
-            if (offer.getItemCostA().item().value() != payout) continue;
-            int n = offer.getItemCostA().count();
+            if (Costs.itemB(offer).isPresent()) continue;
+            if (Costs.itemA(offer) != payout) continue;
+            int n = Costs.countA(offer);
             int m = offer.getResult().getCount();
             if (n > 0 && m > 0) return Math.max(global, m * 16 * ItemValuation.PRECISION / n);
         }
@@ -260,6 +267,10 @@ public final class TradePricer {
      * craft, swing once, sell for more materials than it took to make.</p>
      */
     private static boolean isCraftEquivalent(ItemStack stack) {
+        //? if >=1.20.5 {
         return stack.getComponentsPatch().forget(DURABILITY_COMPONENTS::contains).isEmpty();
+        //?} else {
+        /*return stack.getTag() == null || DURABILITY_COMPONENTS.containsAll(stack.getTag().getAllKeys());
+        *///?}
     }
 }

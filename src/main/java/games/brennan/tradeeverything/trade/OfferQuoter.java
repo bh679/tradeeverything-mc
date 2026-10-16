@@ -1,5 +1,6 @@
 package games.brennan.tradeeverything.trade;
 
+import games.brennan.tradeeverything.compat.Costs;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.item.Item;
@@ -55,8 +56,8 @@ public final class OfferQuoter {
                                     MerchantOffer buyback, MerchantOffers offers) {
         int buybackUnitValue = TradePricer.payoutValueUnits(buyback.getResult().getItem(), offers);
         return PayoutComparison.paysLess(
-            valued.getItemCostA().count(), valued.getResult().getCount(), valuedUnitValue,
-            buyback.getItemCostA().count(), buyback.getResult().getCount(), buybackUnitValue);
+            Costs.countA(valued), valued.getResult().getCount(), valuedUnitValue,
+            Costs.countA(buyback), buyback.getResult().getCount(), buybackUnitValue);
     }
 
     /**

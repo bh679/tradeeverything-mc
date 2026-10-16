@@ -1,6 +1,7 @@
 package games.brennan.tradeeverything.mixin;
 
 import games.brennan.tradeeverything.TradeEverything;
+import games.brennan.tradeeverything.compat.Costs;
 import games.brennan.tradeeverything.trade.OfferQuoter;
 import games.brennan.tradeeverything.trade.OfferResync;
 import games.brennan.tradeeverything.trade.RepriceSuppression;
@@ -102,7 +103,7 @@ public abstract class MerchantMenuMixin {
         if (!SyntheticOfferFactory.isPlaceholder(current)) return;
         if (!(villager.getTradingPlayer() instanceof ServerPlayer player)) return;
 
-        Item icon = current.getItemCostA().item().value();
+        Item icon = Costs.itemA(current);
         Inventory inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
@@ -167,9 +168,7 @@ public abstract class MerchantMenuMixin {
         int needed = 0;
         ItemStack costA = offer.getCostA();
         if (costA.is(Items.EMERALD)) needed += costA.getCount();
-        if (offer.getItemCostB().isPresent() && offer.getItemCostB().get().item().value() == Items.EMERALD) {
-            needed += offer.getItemCostB().get().count();
-        }
+        if (Costs.itemB(offer).orElse(null) == Items.EMERALD) needed += Costs.countB(offer);
         return needed;
     }
 }

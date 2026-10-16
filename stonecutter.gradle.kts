@@ -17,7 +17,10 @@ stonecutter active "1.21.1" /* [SC] DO NOT EDIT */
 stonecutter parameters {
     val modern = current.parsed >= "1.21.11"
     val year = current.parsed >= "26"
+    val legacy = current.parsed < "1.20.5"
     replacements {
+        // 1.20.1 has no data components; the NBT-era equivalents.
+        string(legacy) { replace("isSameItemSameComponents", "isSameItemSameTags") }
         string(modern) { replace("net.minecraft.world.entity.npc.AbstractVillager", "net.minecraft.world.entity.npc.villager.AbstractVillager") }
         string(modern) { replace("net/minecraft/world/entity/npc/AbstractVillager", "net/minecraft/world/entity/npc/villager/AbstractVillager") }
         string(modern) { replace("net.minecraft.world.entity.npc.Villager;", "net.minecraft.world.entity.npc.villager.Villager;") }
@@ -40,6 +43,12 @@ tasks.register("chiseledBuild") {
     group = "project"
     description = "Builds every Minecraft version x loader variant."
     dependsOn(stonecutter.tasks.named("build").map { it.values })
+}
+
+tasks.register("chiseledTest") {
+    group = "project"
+    description = "Runs the common unit tests on every Minecraft version."
+    dependsOn(stonecutter.tasks.named("test") { branch.id.isEmpty() }.map { it.values })
 }
 
 tasks.register("collectReleaseJars") {

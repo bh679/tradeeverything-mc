@@ -1,8 +1,8 @@
 package games.brennan.tradeeverything.trade;
 
+import games.brennan.tradeeverything.compat.Costs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 
@@ -27,13 +27,10 @@ public final class DefaultBuyItemSelector {
     public static Item select(MerchantOffers offers) {
         for (MerchantOffer offer : offers) {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
-            Item costA = offer.getItemCostA().item().value();
+            Item costA = Costs.itemA(offer);
             if (!isCurrency(costA)) return costA;
-            Optional<ItemCost> costB = offer.getItemCostB();
-            if (costB.isPresent()) {
-                Item item = costB.get().item().value();
-                if (!isCurrency(item)) return item;
-            }
+            Optional<Item> costB = Costs.itemB(offer);
+            if (costB.isPresent() && !isCurrency(costB.get())) return costB.get();
         }
         return Items.EMERALD;
     }

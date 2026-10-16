@@ -1,6 +1,7 @@
 package games.brennan.tradeeverything.trade;
 
 import games.brennan.tradeeverything.TradeEverything;
+import games.brennan.tradeeverything.compat.Costs;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
 import games.brennan.tradeeverything.mixin.MerchantMenuAccessor;
 import net.minecraft.server.level.ServerPlayer;
@@ -85,7 +86,7 @@ public final class PlaceholderIconCycle {
 
         if (config.previewHeldItem() && !carried.isEmpty() && !traded.contains(carried.getItem())) {
             // Already previewing this exact stack (same item + components)? Done.
-            if (!SyntheticOfferFactory.isPlaceholder(current) && current.getItemCostA().test(carried)) return;
+            if (!SyntheticOfferFactory.isPlaceholder(current) && Costs.matchesA(current, carried)) return;
             Optional<MerchantOffer> preview = OfferQuoter.quote(villager, carried, offers);
             if (preview.isPresent()) {
                 offers.set(0, preview.get());
@@ -118,7 +119,7 @@ public final class PlaceholderIconCycle {
         MerchantOffer next = owned.isEmpty()
             ? fallbackRow(villager, offers, IconCyclePool.at(step, villager.getId(), traded))
             : SyntheticOfferFactory.pricedPlaceholder(InventoryIconPool.at(owned, step, villager.getId()));
-        if (!stale && current.getItemCostA().item().value() == next.getItemCostA().item().value()) return;
+        if (!stale && Costs.itemA(current) == Costs.itemA(next)) return;
 
         offers.set(0, next);
         OfferResync.send(villager);

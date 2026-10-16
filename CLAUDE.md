@@ -9,8 +9,9 @@ Sibling mod of the Dungeon Train family (AIN / AIS / PlayerMob / ECP / **TE**).
 | Mod id | `tradeeverything` |
 | Group | `games.brennan.tradeeverything` |
 | Version | `gradle.properties` → `mod_version` |
-| Build | `./gradlew build` |
-| Key jars | `{fabric,forge,neoforge}/build/libs/tradeeverything-<loader>-<v>.jar` |
+| MC versions | 1.20.1 (fabric, forge) · 1.21.1 + 1.21.11 (fabric, forge, neoforge) · 26.3 (fabric, forge, neoforge) |
+| Build | `./gradlew collectReleaseJars` (all variants → `build/release/`), `./gradlew chiseledTest` |
+| Key jars | `build/release/tradeeverything-<loader>-<v>[+mc<mc>].jar` — 1.21.1 has no suffix |
 | Release | `gh workflow run release.yml -f tag=v<version>` (creates the tag; never tag manually) |
 | Repo | `bh679/tradeeverything-mc` |
 
@@ -25,7 +26,18 @@ emerald: vanilla `Rarity` defaults (COMMON=1 → 16 items/emerald) + config over
 
 ## Structure
 
-- `common/` — all logic. `config/TradeEverythingConfig` (Gson, immutable snapshot),
+Stonecutter multi-version build (adapted from FusionMods/stonecutter-architectury-template).
+`src/` is the common code, written against **1.21.1** (`vcsVersion`); Stonecutter copies
+it per version into `versions/<mc>/`. Pure renames between versions are string
+replacements in `stonecutter.gradle.kts`; behaviour/signature differences are
+`//? if >=1.21.11 { … }` blocks (1.20.1 = `<1.20.5`, 26.x = `>=26`). `compat/Costs`
+hides ItemCost (1.20.5+) vs ItemStack costs (1.20.1). 26.x builds via
+`loom-no-remap` (`build.26.gradle.kts`). Forge needs `MixinConfigs` in the jar manifest (`forge.mixinConfig`) — it ignores `[[mixins]]` in mods.toml.
+Common compiles against sponge-mixin 0.16.5 (single `@At` in `@Redirect`; 0.17.4's `At[]` crashes Forge/NeoForge MixinExtras).
+Builds run serially (`org.gradle.parallel=false`):
+Architectury Transformer races across MC versions otherwise.
+
+- `src/` — all logic. `config/TradeEverythingConfig` (Gson, immutable snapshot),
   `trade/` (ItemValuation, TradePricer, SyntheticOfferFactory, DefaultBuyItemSelector,
   OfferResync, SyntheticOffer duck), `api/TradeEverythingApi` (consumer-facing),
   `mixin/` — the whole feature is mixin-driven:

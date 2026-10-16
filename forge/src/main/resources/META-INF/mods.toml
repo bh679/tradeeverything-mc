@@ -25,5 +25,3 @@ displayURL="https://github.com/bh679/tradeeverything-mc"
     ordering="NONE"
     side="BOTH"
 
-[[mixins]]
-config="tradeeverything.mixins.json"

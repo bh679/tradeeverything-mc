@@ -22,6 +22,8 @@ public class MerchantOfferMixin implements SyntheticOffer {
         tradeeverything$synthetic = synthetic;
     }
 
+    // MerchantOffer.copy() only exists from 1.20.5.
+    //? if >=1.20.5 {
     /** The flag survives copy() — server-side consumers of copied lists must not see the synthetic offer as real. */
     @org.spongepowered.asm.mixin.injection.Inject(method = "copy", at = @org.spongepowered.asm.mixin.injection.At("RETURN"))
     private void tradeeverything$copyFlag(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<MerchantOffer> cir) {
@@ -29,4 +31,5 @@ public class MerchantOfferMixin implements SyntheticOffer {
             copy.tradeeverything$setSynthetic(true);
         }
     }
+    //?}
 }

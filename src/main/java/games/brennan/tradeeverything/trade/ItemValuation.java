@@ -3,14 +3,19 @@ package games.brennan.tradeeverything.trade;
 import games.brennan.tradeeverything.api.BuyItemSelector;
 import games.brennan.tradeeverything.api.ItemValueProvider;
 import games.brennan.tradeeverything.config.TradeEverythingConfig;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.item.trading.MerchantOffers;
+//? if >=1.20.5 {
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
+//?} else {
+/*import net.minecraft.world.item.enchantment.EnchantmentHelper;
+*///?}
 
 import java.util.List;
 import java.util.Locale;
@@ -104,7 +109,7 @@ public final class ItemValuation {
         if (stack.isDamageableItem() && stack.isDamaged()) {
             // Clamped: out-of-range NBT damage must not drive the factor
             // negative (a negative value would flip the whole trade).
-            double remaining = Math.clamp(
+            double remaining = Mth.clamp(
                 1.0 - (double) stack.getDamageValue() / stack.getMaxDamage(), 0.0, 1.0);
             double factor = MIN_DURABILITY_FACTOR + (1.0 - MIN_DURABILITY_FACTOR) * remaining;
             value = (int) Math.round(value * factor);
@@ -115,8 +120,13 @@ public final class ItemValuation {
     private static int enchantmentBonus(ItemStack stack) {
         int perLevel = TradeEverythingConfig.get().enchantmentValuePerLevelSixteenths();
         if (perLevel <= 0) return 0;
+        //? if >=1.20.5 {
         int levels = totalLevels(stack.get(DataComponents.ENCHANTMENTS))
             + totalLevels(stack.get(DataComponents.STORED_ENCHANTMENTS));
+        //?} else {
+        /*// Reads StoredEnchantments for books and Enchantments for everything else.
+        int levels = totalLevels(EnchantmentHelper.getEnchantments(stack).values());
+        *///?}
         return levels * perLevel * PRECISION;
     }
 
@@ -125,14 +135,28 @@ public final class ItemValuation {
      * Sharpness V is worth 16× a Sharpness I, mirroring how enchant cost
      * and power scale. Capped to avoid overflow on absurd NBT levels.
      */
+    //? if >=1.20.5 {
     private static int totalLevels(ItemEnchantments enchantments) {
         if (enchantments == null) return 0;
         int sum = 0;
         for (var entry : enchantments.entrySet()) {
-            int level = Math.min(entry.getIntValue(), 12);
-            if (level > 0) sum += 1 << (level - 1);
+            sum += levelUnits(entry.getIntValue());
         }
         return sum;
+    }
+    //?} else {
+    /*private static int totalLevels(java.util.Collection<Integer> levels) {
+        int sum = 0;
+        for (int level : levels) {
+            sum += levelUnits(level);
+        }
+        return sum;
+    }
+    *///?}
+
+    private static int levelUnits(int rawLevel) {
+        int level = Math.min(rawLevel, 12);
+        return level > 0 ? 1 << (level - 1) : 0;
     }
 
     /**

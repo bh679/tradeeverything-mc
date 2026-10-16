@@ -1,5 +1,6 @@
 package games.brennan.tradeeverything.trade;
 
+import games.brennan.tradeeverything.compat.Costs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -29,8 +30,8 @@ public final class TradeExemptions {
             if (SyntheticOfferFactory.isSynthetic(offer)) continue;
             // Buy-side: item-level — commodities the villager buys belong to
             // its real trade rows regardless of components.
-            if (offer.getItemCostA().item().value() == item) return true;
-            if (offer.getItemCostB().isPresent() && offer.getItemCostB().get().item().value() == item) return true;
+            if (Costs.itemA(offer) == item) return true;
+            if (Costs.itemB(offer).orElse(null) == item) return true;
         }
         // The villager's own stock is NOT exempt — it's bought back at its value,
         // capped at a 10% margin under its live sell price (see BuybackPricer),

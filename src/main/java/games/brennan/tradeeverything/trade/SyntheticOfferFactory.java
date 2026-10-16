@@ -1,13 +1,16 @@
 package games.brennan.tradeeverything.trade;
 
-import net.minecraft.core.component.DataComponentPredicate;
-import net.minecraft.core.component.DataComponents;
+import games.brennan.tradeeverything.compat.Costs;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
+//? if >=1.20.5 {
+import net.minecraft.core.component.DataComponentPredicate;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.trading.ItemCost;
+//?}
 
 import java.util.Optional;
 
@@ -38,9 +41,13 @@ public final class SyntheticOfferFactory {
      * component, never this translatable one), and the predicate doubles as the
      * marker that tells a placeholder row from a priced quote.
      */
+    private static final Component PLACEHOLDER_NAME = Component.translatable("tradeeverything.trade_anything");
+
+    //? if >=1.20.5 {
     private static final DataComponentPredicate PLACEHOLDER_PREDICATE = DataComponentPredicate.builder()
-        .expect(DataComponents.CUSTOM_NAME, Component.translatable("tradeeverything.trade_anything"))
+        .expect(DataComponents.CUSTOM_NAME, PLACEHOLDER_NAME)
         .build();
+    //?}
 
     /** Icon shown when the cycle is disabled or has nothing to show. */
     public static final Item DEFAULT_ICON = Items.CHEST;
@@ -60,8 +67,7 @@ public final class SyntheticOfferFactory {
      * The result advertises one payout item — what the villager pays with.
      */
     public static MerchantOffer placeholder(Item payout, Item icon) {
-        ItemCost cost = new ItemCost(icon.builtInRegistryHolder(), 1, PLACEHOLDER_PREDICATE);
-        return mark(new MerchantOffer(cost, Optional.empty(), new ItemStack(payout, 1), 0, MAX_USES, 0, 0.0f));
+        return offer(placeholderCost(icon, 1), new ItemStack(payout, 1), 0);
     }
 
     /**
@@ -69,8 +75,14 @@ public final class SyntheticOfferFactory {
      * enchanted/damaged/renamed variants only match themselves) × n, for m × payout.
      */
     public static MerchantOffer priced(ItemStack input, int costCount, Item payout, int resultCount) {
+        //? if >=1.20.5 {
         ItemCost cost = new ItemCost(input.getItemHolder(), costCount, stackPredicate(input));
-        return mark(new MerchantOffer(cost, Optional.empty(), new ItemStack(payout, resultCount), 0, MAX_USES, 0, 0.0f));
+        //?} else {
+        /*// 1.20.1 costs match by NBT containment, so the stack's own tag already
+        // limits the cost to exactly this variant (enchantments, damage, name...).
+        ItemStack cost = input.copyWithCount(costCount);
+        *///?}
+        return offer(cost, new ItemStack(payout, resultCount), 0);
     }
 
     /**
@@ -94,9 +106,11 @@ public final class SyntheticOfferFactory {
      * by a predicate (it can only expect presence), exactly as before: the old
      * full-map predicate simply lacked the entry too.</p>
      */
+    //? if >=1.20.5 {
     static DataComponentPredicate stackPredicate(ItemStack stack) {
         return DataComponentPredicate.allOf(stack.getComponentsPatch().split().added());
     }
+    //?}
 
     /**
      * Pre-insertion placeholder row carrying a real quote's numbers: the quoted
@@ -108,10 +122,7 @@ public final class SyntheticOfferFactory {
      * free to show the real price.
      */
     public static MerchantOffer pricedPlaceholder(MerchantOffer quote) {
-        ItemCost quoted = quote.getItemCostA();
-        ItemCost cost = new ItemCost(quoted.item(), quoted.count(), PLACEHOLDER_PREDICATE);
-        return mark(new MerchantOffer(cost, Optional.empty(), quote.getResult().copy(), 0, MAX_USES, 0, 0.0f,
-            quote.getDemand()));
+        return offer(placeholderCost(Costs.itemA(quote), Costs.countA(quote)), quote.getResult().copy(), quote.getDemand());
     }
 
     /**
@@ -123,8 +134,13 @@ public final class SyntheticOfferFactory {
         if (!isSynthetic(offer)) return offer;
         int percent = Math.max(1, Math.min(FULL_PRICE_PERCENT, (int) Math.floor(priceFraction * FULL_PRICE_PERCENT)));
         if (percent >= FULL_PRICE_PERCENT) return offer;
+        //? if >=1.20.5 {
         return mark(new MerchantOffer(offer.getItemCostA(), offer.getItemCostB(), offer.getResult().copy(),
             0, MAX_USES, 0, 0.0f, percent));
+        //?} else {
+        /*return mark(new MerchantOffer(offer.getBaseCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(),
+            0, MAX_USES, 0, 0.0f, percent));
+        *///?}
     }
 
     /**
@@ -163,8 +179,39 @@ public final class SyntheticOfferFactory {
      * client's only reliable way to recognise the Trade Anything row.
      */
     public static boolean hasPlaceholderCost(MerchantOffer offer) {
+        //? if >=1.20.5 {
         return offer.getItemCostA().components().equals(PLACEHOLDER_PREDICATE);
+        //?} else {
+        /*ItemStack cost = offer.getBaseCostA();
+        return cost.hasCustomHoverName() && cost.getHoverName().equals(PLACEHOLDER_NAME);
+        *///?}
     }
+
+    /**
+     * {@code count} × {@code icon} carrying the "Trade Anything" name: a
+     * {@link #PLACEHOLDER_PREDICATE} on 1.20.5+, the stack's own hover name on
+     * 1.20.1 (whose costs match by NBT containment, so no plain or anvil-renamed
+     * stack ever satisfies the translatable name).
+     */
+    //? if >=1.20.5 {
+    private static ItemCost placeholderCost(Item icon, int count) {
+        return new ItemCost(icon.builtInRegistryHolder(), count, PLACEHOLDER_PREDICATE);
+    }
+
+    private static MerchantOffer offer(ItemCost cost, ItemStack result, int demand) {
+        return mark(new MerchantOffer(cost, Optional.empty(), result, 0, MAX_USES, 0, 0.0f, demand));
+    }
+    //?} else {
+    /*private static ItemStack placeholderCost(Item icon, int count) {
+        ItemStack cost = new ItemStack(icon, count);
+        cost.setHoverName(PLACEHOLDER_NAME);
+        return cost;
+    }
+
+    private static MerchantOffer offer(ItemStack cost, ItemStack result, int demand) {
+        return mark(new MerchantOffer(cost, ItemStack.EMPTY, result, 0, MAX_USES, 0, 0.0f, demand));
+    }
+    *///?}
 
     private static MerchantOffer mark(MerchantOffer offer) {
         ((SyntheticOffer) offer).tradeeverything$setSynthetic(true);

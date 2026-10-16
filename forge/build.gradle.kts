@@ -33,6 +33,9 @@ configurations {
 
 loom {
     silentMojangMappingsLicense()
+    // Forge only loads mixin configs named in the jar's MixinConfigs manifest
+    // attribute ([[mixins]] in mods.toml is NeoForge-only); this writes it.
+    forge.mixinConfig("tradeeverything.mixins.json")
 }
 
 // Architectury Loom's Forge dev launch pulls in net.fabricmc:fabric-log4j-util (a shaded

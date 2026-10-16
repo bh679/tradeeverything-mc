@@ -44,6 +44,7 @@ stonecutter {
         }
         branch("forge") {
             versions("1.20.1", "1.21.1", "1.21.11")
+            versions(*modern).buildscript("build.26.gradle.kts")
         }
 
         vcsVersion = "1.21.1"

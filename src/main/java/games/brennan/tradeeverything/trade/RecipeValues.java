@@ -5,6 +5,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
+//? if >=1.20.2
 import net.minecraft.world.item.crafting.RecipeHolder;
 //? if >=1.21.11 {
 /*import net.minecraft.util.context.ContextMap;
@@ -14,6 +15,10 @@ import net.minecraft.world.item.crafting.display.SlotDisplayContext;
 import games.brennan.tradeeverything.mixin.SmithingTransformRecipeAccessor;
 import net.minecraft.core.NonNullList;
 //?}
+//? if <1.20.2 {
+/*import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.SmithingRecipe;
+*///?}
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
@@ -142,7 +147,7 @@ public final class RecipeValues {
                 broken++;
             }
         }
-        *///?} else {
+        *///?} else if >=1.20.2 {
         for (RecipeHolder<?> holder : manager.getAllRecipesFor(RecipeType.CRAFTING)) {
             // One malformed modded recipe must not void the whole table.
             try {
@@ -172,7 +177,37 @@ public final class RecipeValues {
                 broken++;
             }
         }
-        //?}
+        //?} else {
+        /*for (CraftingRecipe recipe : manager.getAllRecipesFor(RecipeType.CRAFTING)) {
+            // One malformed modded recipe must not void the whole table.
+            try {
+                ItemStack result = recipe.getResultItem(server.registryAccess());
+                if (result.isEmpty()) continue;
+                NonNullList<Ingredient> ingredients = recipe.getIngredients();
+                if (ingredients.isEmpty()) continue;
+                addRecipe(index, result, ingredients);
+            } catch (Throwable t) {
+                broken++;
+            }
+        }
+        // Smithing transforms (netherite gear): template + base + addition,
+        // all consumed — without these a netherite sword prices as COMMON.
+        for (SmithingRecipe recipe : manager.getAllRecipesFor(RecipeType.SMITHING)) {
+            try {
+                if (!(recipe instanceof SmithingTransformRecipe smithing)) continue;
+                ItemStack result = smithing.getResultItem(server.registryAccess());
+                if (result.isEmpty()) continue;
+                SmithingTransformRecipeAccessor accessor = (SmithingTransformRecipeAccessor) smithing;
+                addRecipe(index, result, List.of(
+                    accessor.tradeeverything$template(),
+                    accessor.tradeeverything$base(),
+                    accessor.tradeeverything$addition()
+                ));
+            } catch (Throwable t) {
+                broken++;
+            }
+        }
+        *///?}
         if (broken > 0) {
             LOGGER.warn("[TradeEverything] skipped {} unreadable recipes during value indexing", broken);
         }
