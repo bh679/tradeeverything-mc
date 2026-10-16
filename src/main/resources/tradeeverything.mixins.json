@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "games.brennan.tradeeverything.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "${mixin_compat_level}",
   "mixins": [
     "MerchantOfferMixin",
     "MerchantContainerMixin",

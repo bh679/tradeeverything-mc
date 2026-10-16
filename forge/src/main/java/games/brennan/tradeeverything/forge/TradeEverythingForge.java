@@ -2,7 +2,6 @@ package games.brennan.tradeeverything.forge;
 
 import games.brennan.tradeeverything.ConfigDir;
 import games.brennan.tradeeverything.TradeEverything;
-import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.loading.FMLPaths;
 
@@ -13,7 +12,7 @@ import net.minecraftforge.fml.loading.FMLPaths;
 @Mod("tradeeverything")
 public final class TradeEverythingForge {
 
-    public TradeEverythingForge(IEventBus modBus) {
+    public TradeEverythingForge() {
         ConfigDir.set(FMLPaths.CONFIGDIR.get());
         TradeEverything.init();
     }
